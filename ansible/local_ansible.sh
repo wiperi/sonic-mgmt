@@ -1,0 +1,1 @@
+/home/zhijianli/mgmt/sonic-mgmt-int.main/ansible/local_ansible.sh

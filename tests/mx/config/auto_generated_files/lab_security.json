@@ -1,0 +1,244 @@
+{
+    "acl": {
+        "acl-sets": {
+            "acl-set": {
+                "LAB_SECURITY": {
+                    "acl-entries": {
+                        "acl-entry": {
+                            "1001_IDRAC_WEBUI": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1001
+                                },
+                                "ip": {
+                                    "config": {
+                                        "source-ip-address": "192.168.23.101/32",
+                                        "destination-ip-address": "192.168.23.0/24"
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "destination-port": "443"
+                                    }
+                                }
+                            },
+                            "1006_IDRAC_WEBUI": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1006
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "192.168.23.101/32",
+                                        "source-ip-address": "192.168.23.0/24"
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "source-port": "443"
+                                    }
+                                }
+                            },
+                            "1011_IDRAC_WEBUI": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1011
+                                },
+                                "ip": {
+                                    "config": {
+                                        "source-ip-address": "192.168.23.104/32",
+                                        "destination-ip-address": "192.168.23.0/24"
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "destination-port": "443"
+                                    }
+                                }
+                            },
+                            "1016_IDRAC_WEBUI": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1016
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "192.168.23.104/32",
+                                        "source-ip-address": "192.168.23.0/24"
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "source-port": "443"
+                                    }
+                                }
+                            },
+                            "1101_IDRAC_SSH": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1101
+                                },
+                                "ip": {
+                                    "config": {
+                                        "source-ip-address": "192.168.23.101/32",
+                                        "destination-ip-address": "192.168.23.0/24"
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "destination-port": "22"
+                                    }
+                                }
+                            },
+                            "1106_IDRAC_SSH": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1106
+                                },
+                                "ip": {
+                                    "config": {
+                                        "source-ip-address": "192.168.23.0/24",
+                                        "destination-ip-address": "192.168.23.101/32"
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "source-port": "22"
+                                    }
+                                }
+                            },
+                            "1111_IDRAC_SSH": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1111
+                                },
+                                "ip": {
+                                    "config": {
+                                        "source-ip-address": "192.168.23.104/32",
+                                        "destination-ip-address": "192.168.23.0/24"
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "destination-port": "22"
+                                    }
+                                }
+                            },
+                            "1116_IDRAC_SSH": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1116
+                                },
+                                "ip": {
+                                    "config": {
+                                        "source-ip-address": "192.168.23.0/24",
+                                        "destination-ip-address": "192.168.23.104/32"
+
+                                    }
+                                },
+                                "transport": {
+                                    "config": {
+                                        "source-port": "22"
+                                    }
+                                }
+                            },
+                            "2001_CORPNET": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 2001
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "10.150.22.0/23"
+                                    }
+                                }
+                            },
+                            "9990_DROP_ALL": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "DROP"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 9990
+                                },
+                                "l2": {
+                                    "config": {
+                                        "ethertype": 2048
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "LAB_SECURITY_V6": {
+                    "acl-entries": {
+                        "acl-entry": {
+                            "2001_CORPNET": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id":2001
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "2404:f801:10:2200::/55"
+                                    }
+                                }
+                            },
+                            "9990_DROP_ALL": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "DROP"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 9990
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,66 @@
+{
+    "acl": {
+        "acl-sets": {
+            "acl-set": {
+                "LAB_SECURITY_NORTHBOUND": {
+                    "acl-entries": {
+                        "acl-entry": {
+                            "100_ALLOW_VLAN": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 100
+                                },
+                                "ip": {
+                                    "config": {
+                                        "source-ip-address": "10.150.22.0/23",
+                                        "destination-ip-address": "10.150.22.0/23"
+                                    }
+                                }
+                            },
+                            "9990_DROP_ALL": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "DROP"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 9990
+                                },
+                                "l2": {
+                                    "config": {
+                                        "ethertype": 2048
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "LAB_SECURITY_NORTHBOUND_V6": {
+                    "acl-entries": {
+                        "acl-entry": {
+                            "9990_DROP_ALL": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "DROP"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 9990
+                                },
+                                "l2": {
+                                    "config": {
+                                        "ethertype": 34525
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

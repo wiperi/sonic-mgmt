@@ -1,0 +1,203 @@
+{
+    "acl": {
+        "acl-sets": {
+            "acl-set": {
+                "Protect-Downstream-Device": {
+                    "acl-entries": {
+                        "acl-entry": {
+                            "51_IP2ME_LOOPBACK0": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 51
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "10.1.0.32/32"
+                                    }
+                                },
+                                "l2": {
+                                    "config": {
+                                        "ethertype": 2048
+                                    }
+                                }
+                            },
+                            "61_IP2ME_P2P": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 61
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "10.0.0.64/32"
+                                    }
+                                },
+                                "l2": {
+                                    "config": {
+                                        "ethertype": 2048
+                                    }
+                                }
+                            },
+                            "66_IP2ME_P2P": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 66
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "10.0.0.66/32"
+                                    }
+                                },
+                                "l2": {
+                                    "config": {
+                                        "ethertype": 2048
+                                    }
+                                }
+                            },
+                            "1001_DUMMY": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1001
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "192.168.1.1/32"
+                                    }
+                                },
+                                "l2": {
+                                    "config": {
+                                        "ethertype": 2048
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "Protect-Downstream-Device_IPv6": {
+                    "acl-entries": {
+                        "acl-entry": {
+                            "51_IP2ME_LOOPBACK0": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 51
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "fc00:1::32/128"
+                                    }
+                                }
+                            },
+                            "61_IP2ME_P2P": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 61
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "fc00::81/128"
+                                    }
+                                }
+                            },
+                            "66_IP2ME_P2P": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 66
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "fc00::85/128"
+                                    }
+                                }
+                            },
+                            "91_ICMPV6_NEIGHBOR_SOLICITATION": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 91
+                                },
+                                "icmp": {
+                                    "config": {
+                                        "code": 0,
+                                        "type": 135
+                                    }
+                                },
+                                "ip": {
+                                    "config": {
+                                        "protocol": "58"
+                                    }
+                                }
+                            },
+                            "99_ICMPV6_NEIGHBOR_ADVERTISEMENT": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 99
+                                },
+                                "icmp": {
+                                    "config": {
+                                        "code": 0,
+                                        "type": 136
+                                    }
+                                },
+                                "ip": {
+                                    "config": {
+                                        "protocol": "58"
+                                    }
+                                }
+                            },
+                            
+                            "1001_DUMMY": {
+                                "actions": {
+                                    "config": {
+                                        "forwarding-action": "ACCEPT"
+                                    }
+                                },
+                                "config": {
+                                    "sequence-id": 1001
+                                },
+                                "ip": {
+                                    "config": {
+                                        "destination-ip-address": "abcd::1/128"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
