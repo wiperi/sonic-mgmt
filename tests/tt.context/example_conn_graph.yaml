@@ -1,0 +1,229 @@
+{
+    "device_info": {
+        "bjw3-can-720dt-9": {
+            "Hostname": "bjw3-can-720dt-9",
+            "ManagementIp": "10.150.238.116/23",
+            "HwSku": "Arista-720DT-G48S4",
+            "Type": "DevSonic",
+            "Protocol": "",
+            "Os": "sonic",
+            "mgmtip": "10.150.238.116",
+            "ManagementGw": "10.150.238.1",
+            "CardType": "Linecard",
+            "HwSkuType": "predefined"
+        }
+    },
+    "device_conn": {
+        "bjw3-can-720dt-9": {
+            "Ethernet48": {
+                "peerdevice": "bjw3-can-7260-leaf-25",
+                "peerport": "Ethernet7/1",
+                "speed": "10000",
+                "fec_disable": "",
+                "autoneg": "Off"
+            },
+            "Ethernet49": {
+                "peerdevice": "bjw3-can-7260-leaf-25",
+                "peerport": "Ethernet7/2",
+                "speed": "10000",
+                "fec_disable": "",
+                "autoneg": "Off"
+            },
+            "Ethernet50": {
+                "peerdevice": "bjw3-can-7260-leaf-25",
+                "peerport": "Ethernet7/3",
+                "speed": "10000",
+                "fec_disable": "",
+                "autoneg": "Off"
+            },
+            "Ethernet51": {
+                "peerdevice": "bjw3-can-7260-leaf-25",
+                "peerport": "Ethernet7/4",
+                "speed": "10000",
+                "fec_disable": "",
+                "autoneg": "Off"
+            }
+        }
+    },
+    "device_linked_ports": {
+        "bjw3-can-720dt-9": {}
+    },
+    "device_vrfs": {
+        "bjw3-can-720dt-9": []
+    },
+    "device_port_vlans": {
+        "bjw3-can-720dt-9": {
+            "Ethernet48": {
+                "mode": "Access",
+                "vlanids": "1690",
+                "vlanlist": [
+                    1690
+                ]
+            },
+            "Ethernet49": {
+                "mode": "Access",
+                "vlanids": "1691",
+                "vlanlist": [
+                    1691
+                ]
+            },
+            "Ethernet50": {
+                "mode": "Access",
+                "vlanids": "1692",
+                "vlanlist": [
+                    1692
+                ]
+            },
+            "Ethernet51": {
+                "mode": "Access",
+                "vlanids": "1693",
+                "vlanlist": [
+                    1693
+                ]
+            }
+        }
+    },
+    "device_port_vrfs": {
+        "bjw3-can-720dt-9": {}
+    },
+    "device_vlan_list": {
+        "bjw3-can-720dt-9": [
+            1690,
+            1691,
+            1692,
+            1693
+        ]
+    },
+    "device_vlan_range": {
+        "bjw3-can-720dt-9": [
+            "1690-1693"
+        ]
+    },
+    "device_vlan_map_list": {
+        "bjw3-can-720dt-9": {
+            "48": 1690,
+            "49": 1691,
+            "50": 1692,
+            "51": 1693
+        }
+    },
+    "device_console_link": {
+        "bjw3-can-720dt-9": {
+            "ConsolePort": {
+                "baud_rate": "9600",
+                "peerdevice": "bjw3-can-720dt-mc0-2",
+                "peerport": "25",
+                "proxy": "sonicadmin",
+                "type": "ssh",
+                "menu_type": "sonic_config"
+            }
+        }
+    },
+    "device_console_info": {
+        "bjw3-can-720dt-9": {
+            "Hostname": "bjw3-can-720dt-mc0-2",
+            "ManagementIp": "10.150.238.11/23",
+            "HwSku": "Arista-720DT-G48S4",
+            "Type": "MgmtTsToRRouter",
+            "Protocol": "ssh",
+            "Os": "sonic",
+            "mgmtip": "10.150.238.11",
+            "ManagementGw": "10.150.238.1"
+        }
+    },
+    "device_pdu_info": {
+        "bjw3-can-720dt-9": {
+            "bjw3-pdu-126-66": {
+                "Hostname": "bjw3-pdu-126-66",
+                "ManagementIp": "10.150.126.66",
+                "HwSku": "Vertiv",
+                "Type": "Pdu",
+                "Protocol": "snmp",
+                "Os": ""
+            },
+            "bjw3-pdu-126-67": {
+                "Hostname": "bjw3-pdu-126-67",
+                "ManagementIp": "10.150.126.67",
+                "HwSku": "Vertiv",
+                "Type": "Pdu",
+                "Protocol": "snmp",
+                "Os": ""
+            }
+        }
+    },
+    "device_pdu_links": {
+        "bjw3-can-720dt-9": {
+            "PSU1": {
+                "": {
+                    "peerdevice": "bjw3-pdu-126-66",
+                    "peerport": "11",
+                    "feed": ""
+                }
+            },
+            "PSU2": {
+                "": {
+                    "peerdevice": "bjw3-pdu-126-67",
+                    "peerport": "11",
+                    "feed": ""
+                }
+            },
+            "PSU3": {
+                "": {
+                    "peerdevice": "bjw3-pdu-126-66",
+                    "peerport": "12",
+                    "feed": ""
+                }
+            },
+            "PSU4": {
+                "": {
+                    "peerdevice": "bjw3-pdu-126-67",
+                    "peerport": "12",
+                    "feed": ""
+                }
+            }
+        }
+    },
+    "device_bmc_link": {
+        "bjw3-can-720dt-9": {}
+    },
+    "device_bmc_info": {
+        "bjw3-can-720dt-9": {}
+    },
+    "device_from_l1_links": {
+        "bjw3-can-720dt-9": {}
+    },
+    "device_to_l1_links": {
+        "bjw3-can-720dt-9": {}
+    },
+    "device_l1_cross_connects": {
+        "bjw3-can-720dt-9": {}
+    },
+    "device_serial_link": {
+        "bjw3-can-720dt-9": {
+            "1": {
+                "peerdevice": "bjw3-can-720dt-leaf-27",
+                "peerport": "1",
+                "baud_rate": "9600",
+                "flow_control": "0"
+            },
+            "2": {
+                "peerdevice": "bjw3-can-720dt-leaf-27",
+                "peerport": "2",
+                "baud_rate": "9600",
+                "flow_control": "0"
+            },
+            "3": {
+                "peerdevice": "bjw3-can-720dt-leaf-27",
+                "peerport": "3",
+                "baud_rate": "9600",
+                "flow_control": "0"
+            },
+            "4": {
+                "peerdevice": "bjw3-can-720dt-leaf-27",
+                "peerport": "4",
+                "baud_rate": "9600",
+                "flow_control": "0"
+            }
+        }
+    }
+}

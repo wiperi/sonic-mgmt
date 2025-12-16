@@ -1,0 +1,42 @@
+{
+    # ===== DUT 凭证 =====
+    "sonicadmin_user": "string",
+    "sonicadmin_password": "string",
+    "ansible_altpasswords": ["string"],
+    
+    # ===== Docker Registry =====
+    "docker_registry_host": "string",
+    "docker_registry_username": "string",
+    "docker_registry_password": "string",
+    "public_docker_registry_host": "string",
+    
+    # ===== 邻居设备凭证 =====
+    "eos_login": "string",
+    "eos_password": "string",
+    "eos_root_user": "string",
+    "eos_root_password": "string",
+    
+    "sonic_login": "string",
+    "sonic_password": "string",
+    
+    "cisco_login": "string",
+    "cisco_password": "string",
+    
+    # ===== Fanout 设备凭证 =====
+    "fanout_tacacs_user": "string",
+    "fanout_tacacs_password": "string",
+    "fanout_admin_user": "string",
+    "fanout_admin_password": "string",
+    "fanout_shell_user": "string",
+    "fanout_shell_password": "string",
+    
+    # ===== 控制台凭证 =====
+    "console_user": {},
+    "console_password": {},
+    
+    # ===== 其他 =====
+    "snmp_rocommunity": "string",
+    "snmp_rwcommunity": "string",
+    "ptf_host_user": "string",
+    "ptf_host_pass": "string"
+}
