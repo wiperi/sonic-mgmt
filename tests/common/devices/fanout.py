@@ -1,3 +1,5 @@
+from collections import defaultdict
+from dataclasses import dataclass
 import logging
 
 from tests.common.devices.sonic import SonicHost
@@ -7,6 +9,12 @@ from tests.common.devices.eos import EosHost
 from tests.common.devices.aos import AosHost
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class SerialPortMapping:
+    peerport: str
+    baud_rate: str
+    flow_control: str
 
 class FanoutHost(object):
     """
@@ -19,8 +27,11 @@ class FanoutHost(object):
                  eos_shell_user=None, eos_shell_passwd=None):
         self.hostname = hostname
         self.type = device_type
-        self.host_to_fanout_port_map = {}
-        self.fanout_to_host_port_map = {}
+        self.host_to_fanout_ethernet_port_map = {}
+        self.fanout_to_host_ethernet_port_map = {}
+        self.host_to_fanout_serial_port_map: defaultdict[str, SerialPortMapping] = defaultdict(lambda : None)
+        self.fanout_to_host_serial_port_map: defaultdict[str, SerialPortMapping] = defaultdict(lambda : None)
+
         if os == 'sonic':
             self.os = os
             self.fanout_port_alias_to_name = {}
@@ -108,7 +119,7 @@ class FanoutHost(object):
     def __repr__(self):
         return self.__str__()
 
-    def add_port_map(self, host_port, fanout_port):
+    def add_ethernet_port_map(self, host_port, fanout_port):
         """
             Fanout switch is build from the connection graph of the
             DUT. So each fanout switch instance is relevant to the
@@ -119,8 +130,25 @@ class FanoutHost(object):
             host_port is a encoded string of <host name>|<port name>,
             e.g. sample_host|Ethernet0.
         """
-        self.host_to_fanout_port_map[host_port] = fanout_port
-        self.fanout_to_host_port_map[fanout_port] = host_port
+        self.host_to_fanout_ethernet_port_map[host_port] = fanout_port
+        self.fanout_to_host_ethernet_port_map[fanout_port] = host_port
+
+    def add_serial_port_map(self, host_port: str, fanout_port: str, baud_rate: str, flow_control: str):
+        """
+            Similar to add_port_map but for serial port mapping
+        """
+
+        self.host_to_fanout_serial_port_map[host_port] = SerialPortMapping(
+            peerport=fanout_port,
+            baud_rate=baud_rate,
+            flow_control=flow_control
+        )
+
+        self.fanout_to_host_serial_port_map[fanout_port] = SerialPortMapping(
+            peerport=host_port,
+            baud_rate=baud_rate,
+            flow_control=flow_control
+        )
 
     def exec_template(self, ansible_root, ansible_playbook, inventory, **kwargs):
         return self.host.exec_template(ansible_root, ansible_playbook, inventory, **kwargs)
