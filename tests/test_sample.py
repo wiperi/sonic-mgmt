@@ -40,6 +40,30 @@ def test_set_loopback(duthosts, fanouthosts, conn_graph_facts):
 
     fanout.shell("sudo pkill socat", module_ignore_errors=True)
 
+def test_bridge(duthosts, fanouthosts, conn_graph_facts):
+
+    
+    dut: SonicHost = duthosts[0]
+
+    fanout: SonicHost = fanouthosts["bjw3-can-720dt-leaf-27"].host
+
+
+    result = fanout.set_loopback(1)
+    
+    breakpoint()
+
+    assert result['status'] == 'success', f"Failed to set loopback on fanout: {result.get('message', '')}"
+
+    dut.shell("cat /dev/C0-1 > /tmp/serial_output.txt &", module_ignore_errors=True)
+
+    dut.shell("printf 'hello world' > /dev/C0-1", module_ignore_errors=True)
+
+    result = dut.shell("cat /tmp/serial_output.txt", module_ignore_errors=True)
+
+    assert "hello world" in result['stdout'], f"Expected 'hello world' in serial output, got: {result['stdout']}"
+
+    fanout.shell("sudo pkill socat", module_ignore_errors=True)
+
 
 def tt_test_console_loopback(duthosts, fanouthosts):
     dut = duthosts[0]

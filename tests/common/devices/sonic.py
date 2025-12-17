@@ -2993,7 +2993,7 @@ Totals               6450                 6449
             f"& echo $!"
         )
         
-        result = self.shell(command)
+        result = self.shell(command, module_ignore_errors=True)
         
         if result['rc'] != 0:
             logging.error(f"Failed to start socat on port {port}: {result.get('stderr', '')}")
