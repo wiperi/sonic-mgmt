@@ -1045,8 +1045,6 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
             eos_shell_user = creds.get('fanout_shell_user', admin_user)
             eos_shell_password = creds.get('fanout_shell_password', admin_password)
         
-        breakpoint()
-
         # Create FanoutHost object
         fanout = FanoutHost(
             ansible_adhoc,
@@ -1081,44 +1079,44 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
     
     # Process Ethernet connections
 
-    dev_conn = conn_graph_facts.get('device_conn', {})
+    # dev_conn = conn_graph_facts.get('device_conn', {})
 
-    for dut_host, ethernet_ports in dev_conn.items():
+    # for dut_host, ethernet_ports in dev_conn.items():
             
-        duthost = duthosts[dut_host]
+    #     duthost = duthosts[dut_host]
         
-        # Skip virtual testbed which has no fanout
-        if duthost.facts['platform'] == 'x86_64-kvm_x86_64-r0':
-            logging.info(f"Skipping kvm platform {dut_host}")
-            continue
+    #     # Skip virtual testbed which has no fanout
+    #     if duthost.facts['platform'] == 'x86_64-kvm_x86_64-r0':
+    #         logging.info(f"Skipping kvm platform {dut_host}")
+    #         continue
         
-        # Safely get minigraph facts (handles mc0/c0 topologies without minigraph.xml)
-        mg_facts = get_minigraph_facts_safe(duthost)
+    #     # Safely get minigraph facts (handles mc0/c0 topologies without minigraph.xml)
+    #     mg_facts = get_minigraph_facts_safe(duthost)
         
-        # Process each Ethernet port connection
-        for dut_port, fanout_rec in ethernet_ports.items():
-            fanout_host = str(fanout_rec['peerdevice'])
-            fanout_port = str(fanout_rec['peerport'])
+    #     # Process each Ethernet port connection
+    #     for dut_port, fanout_rec in ethernet_ports.items():
+    #         fanout_host = str(fanout_rec['peerdevice'])
+    #         fanout_port = str(fanout_rec['peerport'])
             
-            # Create or get fanout object
-            fanout = create_or_get_fanout(fanout_hosts, fanout_host, dut_host)
-            if fanout is None:
-                continue
+    #         # Create or get fanout object
+    #         fanout = create_or_get_fanout(fanout_hosts, fanout_host, dut_host)
+    #         if fanout is None:
+    #             continue
             
-            # Add Ethernet port mapping: DUT port -> Fanout port
-            fanout.add_port_map(encode_dut_port_name(dut_host, dut_port), fanout_port)
+    #         # Add Ethernet port mapping: DUT port -> Fanout port
+    #         fanout.add_port_map(encode_dut_port_name(dut_host, dut_port), fanout_port)
             
-            # Handle port alias mapping if available
-            if dut_port in mg_facts.get('minigraph_port_alias_to_name_map', {}):
-                mapped_port = mg_facts['minigraph_port_alias_to_name_map'][dut_port]
-                # only add the mapped port which isn't in device_conn ports to avoid overwriting port map wrongly,
-                # it happens when an interface has the same name with another alias, for example:
-                # Interface     Alias
-                # --------------------
-                # Ethernet108   Ethernet32
-                # Ethernet32    Ethernet13/1
-                if mapped_port not in list(ethernet_ports.keys()):
-                    fanout.add_port_map(encode_dut_port_name(dut_host, mapped_port), fanout_port)
+    #         # Handle port alias mapping if available
+    #         if dut_port in mg_facts.get('minigraph_port_alias_to_name_map', {}):
+    #             mapped_port = mg_facts['minigraph_port_alias_to_name_map'][dut_port]
+    #             # only add the mapped port which isn't in device_conn ports to avoid overwriting port map wrongly,
+    #             # it happens when an interface has the same name with another alias, for example:
+    #             # Interface     Alias
+    #             # --------------------
+    #             # Ethernet108   Ethernet32
+    #             # Ethernet32    Ethernet13/1
+    #             if mapped_port not in list(ethernet_ports.keys()):
+    #                 fanout.add_port_map(encode_dut_port_name(dut_host, mapped_port), fanout_port)
     
     # Process Serial connections
 
@@ -1147,7 +1145,6 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
             serial_port_key = f"C0_{serial_port_num}"
             fanout.add_port_map(encode_dut_port_name(dut_host, serial_port_key), fanout_port)
 
-            
             logging.debug(f"Added serial port mapping: {dut_host} Console{serial_port_num} -> "
                          f"{fanout_host}:{fanout_port} (baud={link_info.get('baud_rate', '9600')})")
     

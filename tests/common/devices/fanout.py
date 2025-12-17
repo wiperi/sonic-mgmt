@@ -8,7 +8,6 @@ from tests.common.devices.aos import AosHost
 
 logger = logging.getLogger(__name__)
 
-
 class FanoutHost(object):
     """
     @summary: Class for Fanout switch
