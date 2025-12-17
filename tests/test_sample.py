@@ -19,25 +19,29 @@ pytestmark = [
 
 def test_set_loopback(duthosts, fanouthosts, conn_graph_facts):
 
-    breakpoint()
     
     dut: SonicHost = duthosts[0]
-    dut_name = dut.hostname
 
-    fanout: FanoutHost = fanouthosts["bjw3-can-720dt-leaf-27"]
+    fanout: SonicHost = fanouthosts["bjw3-can-720dt-leaf-27"].host
 
-    # setup port loopback on fanout switch
-    # fanout.set_loopback(1)
-    fanout.host.shell("sudo socat -d -d FILE:/dev/C0-1,raw,echo=0,nonblock,b9600,cs8,parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0 EXEC:'/bin/cat' & echo $!")
 
-    dut.host.shell("echo 'Configuring DUT for loopback test'")
+    result = fanout.set_loopback(1)
+    breakpoint()
 
-    # verify port loopback status on dut
-    # dut connect to console line 1
-    # dut send packet to console line 1
-    # assert packet received on console line 1
+    assert result['status'] == 'success', f"Failed to set loopback on fanout: {result.get('message', '')}"
 
-def test_console_loopback(duthosts, fanouthosts):
+    dut.shell("cat /dev/C0-1 > /tmp/serial_output.txt &", module_ignore_errors=True)
+
+    dut.shell("printf 'hello world' > /dev/C0-1", module_ignore_errors=True)
+
+    result = dut.shell("cat /tmp/serial_output.txt", module_ignore_errors=True)
+
+    assert "hello world" in result['stdout'], f"Expected 'hello world' in serial output, got: {result['stdout']}"
+
+    fanout.shell("sudo pkill socat", module_ignore_errors=True)
+
+
+def tt_test_console_loopback(duthosts, fanouthosts):
     dut = duthosts[0]
     
     # 1. 在后台启动读取进程
@@ -66,7 +70,7 @@ def test_console_loopback(duthosts, fanouthosts):
     dut.host.shell("rm -f /tmp/serial_output.txt")
 
 
-def test_set_loopback(duthosts, fanouthosts, conn_graph_facts):
+def tt_test_set_loopback(duthosts, fanouthosts, conn_graph_facts):
     dut = duthosts[0]
     fanout = fanouthosts['bjw3-can-720dt-leaf-27']
     

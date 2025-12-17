@@ -2982,63 +2982,39 @@ Totals               6450                 6449
         """
 
         device_path = f"/dev/C0-{port}"
-        log_file = f"/tmp/console_loopback_{port}.log"
-        pid_file = f"/tmp/console_loopback_{port}.pid"
-        
+
         # Build socat command with all necessary serial port parameters
         # Use raw mode and disable all terminal processing to avoid feedback loops
         command = (
-            f"sudo nohup socat -d -d "
+            f"sudo socat -d -d "
             f"FILE:{device_path},raw,echo=0,nonblock,b9600,cs8,"
             f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0,icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
-            f"EXEC:'/bin/cat' "
-            f"> {log_file} 2>&1 & "
-            f"echo $! > {pid_file}; cat {pid_file}"
+            f"EXEC:'/bin/cat'"
+            f"& echo $!"
         )
         
-        try:
-            result = self.host.shell(command, module_ignore_errors=True)
-            
-            if result['rc'] != 0:
-                logging.error(f"Failed to start socat on port {port}: {result.get('stderr', '')}")
-                return {
-                    'status': 'failed',
-                    'pid': None,
-                    'device': device_path,
-                    'message': f"Command failed: {result.get('stderr', 'Unknown error')}"
-                }
-            
-            pid = int(result['stdout'].strip())
-            
-            # Verify the process is running
-            verify_result = self.host.shell(f"ps -p {pid}", module_ignore_errors=True)
-            if verify_result['rc'] != 0:
-                logging.error(f"Socat process {pid} not found after start")
-                return {
-                    'status': 'failed',
-                    'pid': pid,
-                    'device': device_path,
-                    'message': f"Process {pid} not running after start"
-                }
-            
-            logging.info(f"Successfully started socat loopback on port {port} with pid {pid}")
-            return {
-                'status': 'success',
-                'pid': pid,
-                'device': device_path,
-                'message': f"Loopback started on {device_path}",
-                'log_file': log_file,
-                'pid_file': pid_file
-            }
-            
-        except Exception as e:
-            logging.error(f"Exception while starting loopback on port {port}: {str(e)}")
+        result = self.shell(command)
+        
+        if result['rc'] != 0:
+            logging.error(f"Failed to start socat on port {port}: {result.get('stderr', '')}")
             return {
                 'status': 'failed',
                 'pid': None,
                 'device': device_path,
-                'message': f"Exception: {str(e)}"
+                'message': f"Command failed: {result.get('stderr', 'Unknown error')}"
             }
+        
+        pid = int(result['stdout'].strip())
+        
+        logging.info(f"Successfully started socat loopback on port {port} with pid {pid}")
+
+        return {
+            'status': 'success',
+            'pid': pid,
+            'device': device_path,
+            'message': f"Loopback started on {device_path}",
+        }
+    
 
     def bridge(self, port1: int, port2: int):
         pass
