@@ -29,8 +29,8 @@ class FanoutHost(object):
                  eos_shell_user=None, eos_shell_passwd=None, is_console_switch=False):
         self.hostname = hostname
         self.type = device_type
-        self.host_to_fanout_ethernet_port_map = {}
-        self.fanout_to_host_ethernet_port_map = {}
+        self.host_to_fanout_port_map = {}
+        self.fanout_to_host_port_map = {}
         self.serial_port_map: defaultdict[str, Optional[SerialPortMapping]] = defaultdict(lambda : None)
 
         if os == 'sonic':
@@ -121,7 +121,7 @@ class FanoutHost(object):
     def __repr__(self):
         return self.__str__()
 
-    def add_ethernet_port_map(self, host_port, fanout_port):
+    def add_port_map(self, host_port, fanout_port):
         """
             Fanout switch is build from the connection graph of the
             DUT. So each fanout switch instance is relevant to the
@@ -132,8 +132,8 @@ class FanoutHost(object):
             host_port is a encoded string of <host name>|<port name>,
             e.g. sample_host|Ethernet0.
         """
-        self.host_to_fanout_ethernet_port_map[host_port] = fanout_port
-        self.fanout_to_host_ethernet_port_map[fanout_port] = host_port
+        self.host_to_fanout_port_map[host_port] = fanout_port
+        self.fanout_to_host_port_map[fanout_port] = host_port
 
     def add_serial_port_map(self, host_name: str, host_port: str, fanout_port: str, baud_rate: str, flow_control: str):
         """
