@@ -2980,24 +2980,43 @@ Totals               6450                 6449
                 logging.error(f"Error starting bgpd process: {str(e)}")
                 return {'rc': 1, 'stdout': '', 'stderr': str(e)}
 
-    def set_loopback(self, port: str, baud_rate: str) -> tuple[int, str]:
-        # Check if device path exists
-        device_path = f"/dev/C0-{port}"
+    def _build_error(self, message: str) -> tuple[int, str]:
+        """Helper function to log error and return error tuple."""
+        logging.error(message)
+        return 1, message
 
+    def _check_device_path_exists(self, device_path: str) -> tuple[int, str] | None:
+        """Check if device path exists. Returns error tuple if check fails, None if successful."""
         res: ShellResult = self.shell(f"test -e {device_path}", module_ignore_errors=True)
         if res['rc'] != 0:
-            log_message = f"Device path {device_path} does not exist: {res.get('stderr', '')}"
-            logging.error(log_message)
-            return 1, log_message
+            return self._build_error(
+                f"Device path {device_path} does not exist: {res.get('stderr', '')}"
+            )
+        return None
 
-        # Check if device path is already in use
+    def _check_device_path_not_in_use(self, device_path: str) -> tuple[int, str] | None:
+        """Check if device path is not in use. Returns error tuple if check fails, None if successful."""
         res: ShellResult = self.shell(f"sudo lsof {device_path}", module_ignore_errors=True)
         if res['stdout'] or res['stderr']:
-            log_message = f"Device path {device_path} is already in use: {res.get('stdout', '')}"
-            logging.error(log_message)
-            return 1, log_message
+            return self._build_error(
+                f"Device path {device_path} is already in use: {res.get('stdout', '')}"
+            )
+        return None
 
-        # Excute loopback command
+    def set_loopback(self, port: str, baud_rate: str) -> tuple[int, str]:
+        device_path = f"/dev/C0-{port}"
+
+        # Check if device path exists
+        error = self._check_device_path_exists(device_path)
+        if error:
+            return error
+
+        # Check if device path is already in use
+        error = self._check_device_path_not_in_use(device_path)
+        if error:
+            return error
+
+        # Execute loopback command
         command = (
             f"sudo socat -d -d "
             f"FILE:{device_path},raw,echo=0,nonblock,b{baud_rate},cs8,"
@@ -3008,12 +3027,11 @@ Totals               6450                 6449
 
         res: ShellResult = self.shell(command, module_ignore_errors=True)
         if res['failed']:
-            log_message = f"Failed to start socat on port {port}: {res.get('stderr', '')}"
-            logging.error(log_message)
-            return 1, log_message
+            return self._build_error(
+                f"Failed to start socat on port {port}: {res.get('stderr', '')}"
+            )
 
         logging.info(f"Successfully started socat loopback on port {port}")
-
         return 0, f"Loopback started on {device_path}"
 
     def unset_loopback(self, port: str) -> tuple[int, str]:
@@ -3032,19 +3050,88 @@ Totals               6450                 6449
             self.shell(f"ps aux | grep 'socat .*{device_path}' | grep -v grep", module_ignore_errors=True)
 
         if res['stdout'].strip():
-            log_message = f"Failed to stop socat process for device path {device_path}"
-            logging.error(log_message)
-            return 1, log_message
+            return self._build_error(
+                f"Failed to stop socat process for device path {device_path}"
+            )
 
         logging.info(f"Successfully stopped socat loopback on port {port}")
-
         return 0, f"Loopback stopped on {device_path}"
 
-    def bridge(self, port1: str, port2: str):
-        raise NotImplementedError("Bridge method is not implemented yet")
+    def bridge(self, port1: str, port2: str, baud_rate: str = "9600") -> tuple[int, str]:
+        device_path1 = f"/dev/C0-{port1}"
+        device_path2 = f"/dev/C0-{port2}"
 
-    def unbridge(self, port1: str, port2: str):
-        raise NotImplementedError("Bridge method is not implemented yet")
+        # Check if both device paths exist
+        error = self._check_device_path_exists(device_path1)
+        if error:
+            return error
+
+        error = self._check_device_path_exists(device_path2)
+        if error:
+            return error
+
+        # Check if both device paths are not in use
+        error = self._check_device_path_not_in_use(device_path1)
+        if error:
+            return error
+
+        error = self._check_device_path_not_in_use(device_path2)
+        if error:
+            return error
+
+        # Execute bridge command
+        command = (
+            f"sudo socat -d -d "
+            f"FILE:{device_path1},raw,echo=0,nonblock,b{baud_rate},cs8,"
+            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0,icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
+            f"FILE:{device_path2},raw,echo=0,nonblock,b{baud_rate},cs8,"
+            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0,icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
+            f"& echo $! "
+        )
+
+        res: ShellResult = self.shell(command, module_ignore_errors=True)
+        if res['failed']:
+            return self._build_error(
+                f"Failed to bridge ports {port1} and {port2}: {res.get('stderr', '')}"
+            )
+
+        logging.info(f"Successfully bridged ports {port1} and {port2}")
+        return 0, f"Bridge established between {device_path1} and {device_path2}"
+
+    def unbridge(self, port1: str, port2: str) -> tuple[int, str]:
+        device_path1 = f"/dev/C0-{port1}"
+        device_path2 = f"/dev/C0-{port2}"
+
+        # Find all related socat processes for both ports
+        res: ShellResult = self.shell(
+            f"pgrep -f 'socat .*{device_path1}.*{device_path2}|socat .*{device_path2}.*{device_path1}'",
+            module_ignore_errors=True
+        )
+        pids = res['stdout'].strip().split('\n') if res['stdout'].strip() else []
+
+        if not pids or pids == ['']:
+            return self._build_error(
+                f"No bridge found between {device_path1} and {device_path2}"
+            )
+
+        # Kill all related socat processes
+        for pid in pids:
+            if pid:  # Skip empty strings
+                self.shell(f"sudo kill {pid}", module_ignore_errors=True)
+
+        # Confirm all related processes have stopped
+        res: ShellResult = self.shell(
+            f"ps aux | grep -E 'socat.*{device_path1}.*{device_path2}|socat.*{device_path2}.*{device_path1}' | grep -v grep",
+            module_ignore_errors=True
+        )
+
+        if res['stdout'].strip():
+            return self._build_error(
+                f"Failed to stop bridge process between {device_path1} and {device_path2}"
+            )
+
+        logging.info(f"Successfully unbridged ports {port1} and {port2}")
+        return 0, f"Bridge removed between {device_path1} and {device_path2}"
 
     def bridge_remote(self, port: str, remote_host: str, remote_port: str):
         raise NotImplementedError("Bridge method is not implemented yet")
