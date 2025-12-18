@@ -984,7 +984,7 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
         # Return minimal structure to avoid KeyError in downstream code
         return {'minigraph_port_alias_to_name_map': {}}
 
-    def create_or_get_fanout(fanout_hosts, fanout_name, dut_host) -> FanoutHost | None:
+    def create_or_get_fanout(fanout_hosts, fanout_name, dut_host, is_console_switch=False) -> FanoutHost | None:
         """
         Create FanoutHost if not exists, or return existing one.
         This centralizes fanout creation logic for both Ethernet and Serial connections.
@@ -1055,7 +1055,8 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
             fanout_user,
             fanout_password,
             eos_shell_user=eos_shell_user,
-            eos_shell_passwd=eos_shell_password
+            eos_shell_passwd=eos_shell_password,
+            is_console_switch=is_console_switch
         )
         fanout.dut_hostnames = [dut_host]
         fanout_hosts[fanout_name] = fanout
@@ -1148,12 +1149,12 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
             flow_control = link_info.get('flow_control', "0")
 
             # Create or get fanout object (reuses same function as Ethernet)
-            fanout = create_or_get_fanout(fanout_hosts, fanout_host, dut_name)
+            fanout = create_or_get_fanout(fanout_hosts, fanout_host, dut_name, is_console_switch=True)
             if fanout is None:
                 continue
 
             # Add Serial port mapping
-            fanout.add_serial_port_map(host_port, fanout_port, baud_rate, flow_control)
+            fanout.add_serial_port_map(dut_name, host_port, fanout_port, baud_rate, flow_control)
 
             logging.debug(
                 f"Added serial port mapping: {dut_name} Console{host_port} -> "

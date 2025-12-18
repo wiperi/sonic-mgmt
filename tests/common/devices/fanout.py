@@ -1,6 +1,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 import logging
+from typing import Optional, TypedDict
 
 from tests.common.devices.sonic import SonicHost
 from tests.common.devices.onyx import OnyxHost
@@ -11,8 +12,9 @@ from tests.common.devices.aos import AosHost
 logger = logging.getLogger(__name__)
 
 @dataclass
-class SerialPortMapping:
-    peerport: str
+class SerialPortMapping():
+    dut_name: str
+    dut_port: str
     baud_rate: str
     flow_control: str
 
@@ -24,20 +26,20 @@ class FanoutHost(object):
     """
 
     def __init__(self, ansible_adhoc, os, hostname, device_type, user, passwd,
-                 eos_shell_user=None, eos_shell_passwd=None):
+                 eos_shell_user=None, eos_shell_passwd=None, is_console_switch=False):
         self.hostname = hostname
         self.type = device_type
         self.host_to_fanout_ethernet_port_map = {}
         self.fanout_to_host_ethernet_port_map = {}
-        self.host_to_fanout_serial_port_map: defaultdict[str, SerialPortMapping] = defaultdict(lambda : None)
-        self.fanout_to_host_serial_port_map: defaultdict[str, SerialPortMapping] = defaultdict(lambda : None)
+        self.serial_port_map: defaultdict[str, Optional[SerialPortMapping]] = defaultdict(lambda : None)
 
         if os == 'sonic':
             self.os = os
             self.fanout_port_alias_to_name = {}
             self.host = SonicHost(ansible_adhoc, hostname,
                                   ssh_user=user,
-                                  ssh_passwd=passwd)
+                                  ssh_passwd=passwd,
+                                  is_console_switch=is_console_switch)
         elif os == 'onyx':
             self.os = os
             self.host = OnyxHost(ansible_adhoc, hostname, user, passwd)
@@ -133,19 +135,14 @@ class FanoutHost(object):
         self.host_to_fanout_ethernet_port_map[host_port] = fanout_port
         self.fanout_to_host_ethernet_port_map[fanout_port] = host_port
 
-    def add_serial_port_map(self, host_port: str, fanout_port: str, baud_rate: str, flow_control: str):
+    def add_serial_port_map(self, host_name: str, host_port: str, fanout_port: str, baud_rate: str, flow_control: str):
         """
             Similar to add_port_map but for serial port mapping
         """
 
-        self.host_to_fanout_serial_port_map[host_port] = SerialPortMapping(
-            peerport=fanout_port,
-            baud_rate=baud_rate,
-            flow_control=flow_control
-        )
-
-        self.fanout_to_host_serial_port_map[fanout_port] = SerialPortMapping(
-            peerport=host_port,
+        self.serial_port_map[fanout_port] = SerialPortMapping(
+            dut_name=host_name,
+            dut_port=host_port,
             baud_rate=baud_rate,
             flow_control=flow_control
         )
