@@ -965,12 +965,13 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
     def create_or_get_fanout(fanout_hosts, fanout_name, dut_host, is_console_switch=False) -> FanoutHost | None:
         """
         Create FanoutHost if not exists, or return existing one.
-        This centralizes fanout creation logic for both Ethernet and Serial connections.
+        Fanout creation logic for both Ethernet and Serial connections.
 
         Args:
             fanout_hosts (dict): Dictionary of existing fanout hosts
             fanout_name (str): Fanout device hostname
             dut_host (str): DUT hostname that connects to this fanout
+            is_console_switch (bool): Whether the fanout supports console server features
 
         Returns:
             FanoutHost: Fanout host object
@@ -1009,11 +1010,9 @@ def fanouthosts(enhance_inventory, ansible_adhoc, tbinfo, conn_graph_facts, cred
             fanout_password = creds.get('fanout_mlnx_password', None)
         elif os_type == 'ixia':
             # Skip for ixia device which has no fanout
-            logging.info(f"Skipping ixia device {fanout_name}")
             return None
         else:
-            logging.warning(f"Unsupported fanout OS type: {os_type}")
-            return None
+            pytest.fail(f"Unsupported fanout OS type {os_type} for fanout {fanout_name}")
 
         # EOS specific shell credentials
         eos_shell_user = None

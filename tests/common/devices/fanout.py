@@ -1,7 +1,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 import logging
-from typing import Optional, TypedDict
+from typing import Optional
 
 from tests.common.devices.sonic import SonicHost
 from tests.common.devices.onyx import OnyxHost
@@ -18,6 +18,14 @@ class SerialPortMapping():
     baud_rate: str
     flow_control: str
 
+@dataclass
+class SerialPortMapping():
+    dut_name: str
+    dut_port: str
+    baud_rate: str
+    flow_control: str
+
+
 class FanoutHost(object):
     """
     @summary: Class for Fanout switch
@@ -31,7 +39,7 @@ class FanoutHost(object):
         self.type = device_type
         self.host_to_fanout_port_map = {}
         self.fanout_to_host_port_map = {}
-        self.serial_port_map: defaultdict[str, Optional[SerialPortMapping]] = defaultdict(lambda : None)
+        self.serial_port_map: defaultdict[str, Optional[SerialPortMapping]] = defaultdict(lambda: None)
 
         if os == 'sonic':
             self.os = os
@@ -137,7 +145,8 @@ class FanoutHost(object):
 
     def add_serial_port_map(self, host_name: str, host_port: str, fanout_port: str, baud_rate: str, flow_control: str):
         """
-            Similar to add_port_map but for serial port mapping
+            Record serial port mapping information for a given fanout port.
+            Mapping information can be access via self.serial_port_map[fanout_port]
         """
 
         self.serial_port_map[fanout_port] = SerialPortMapping(

@@ -28,6 +28,7 @@ from tests.common.errors import RunAnsibleModuleFail
 from tests.common import constants
 from typing import TypedDict
 
+
 class ShellResult(TypedDict):
     cmd: str
     rc: int
@@ -37,6 +38,7 @@ class ShellResult(TypedDict):
     stderr_lines: list
     failed: bool
     changed: bool
+
 
 logger = logging.getLogger(__name__)
 
@@ -2979,7 +2981,7 @@ Totals               6450                 6449
                 return {'rc': 1, 'stdout': '', 'stderr': str(e)}
 
     def set_loopback(self, port: str, baud_rate: str) -> tuple[int, str]:
-        # 检查port文件存在
+        # Check if device path exists
         device_path = f"/dev/C0-{port}"
 
         res: ShellResult = self.shell(f"test -e {device_path}", module_ignore_errors=True)
@@ -2988,14 +2990,14 @@ Totals               6450                 6449
             logging.error(log_message)
             return 1, log_message
 
-        # 检查是否port已被其他进程监听
+        # Check if device path is already in use
         res: ShellResult = self.shell(f"sudo lsof {device_path}", module_ignore_errors=True)
         if res['stdout'] or res['stderr']:
             log_message = f"Device path {device_path} is already in use: {res.get('stdout', '')}"
             logging.error(log_message)
             return 1, log_message
 
-        # 执行命令
+        # Excute loopback command
         command = (
             f"sudo socat -d -d "
             f"FILE:{device_path},raw,echo=0,nonblock,b{baud_rate},cs8,"
@@ -3014,72 +3016,21 @@ Totals               6450                 6449
 
         return 0, f"Loopback started on {device_path}"
 
-
-    def set_loopback_v0(self, port: str):
-        
-        """
-        Set up loopback on a console port using socat
-        
-        Args:
-            port: Console line number
-            
-        Returns:
-            dict: {
-                'status': 'success' or 'failed',
-                'pid': socat process PID,
-                'device': device path,
-                'message': detailed information
-            }
-        """
-
-        device_path = f"/dev/C0-{port}"
-
-        # Build socat command with all necessary serial port parameters
-        # Use raw mode and disable all terminal processing to avoid feedback loops
-        command = (
-            f"sudo socat -d -d "
-            f"FILE:{device_path},raw,echo=0,nonblock,b9600,cs8,"
-            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0,icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
-            f"EXEC:'/bin/cat'"
-            f"& echo $!"
-        )
-
-        result = self.shell(command, module_ignore_errors=True)
-        
-        if result['rc'] != 0:
-            logging.error(f"Failed to start socat on port {port}: {result.get('stderr', '')}")
-            return {
-                'status': 'failed',
-                'pid': None,
-                'device': device_path,
-                'message': f"Command failed: {result.get('stderr', 'Unknown error')}"
-            }
-        
-        pid = int(result['stdout'].strip())
-        
-        logging.info(f"Successfully started socat loopback on port {port} with pid {pid}")
-
-        return {
-            'status': 'success',
-            'pid': pid,
-            'device': device_path,
-            'message': f"Loopback started on {device_path}",
-        }
-
     def unset_loopback(self, port: str) -> tuple[int, str]:
-        # 停止socat进程
+        # Find all related socat processes
         device_path = f"/dev/C0-{port}"
-        
-        # 查找socat进程
+
         res: ShellResult = self.shell(f"pgrep -f 'socat .*{device_path}'", module_ignore_errors=True)
         pids = res['stdout'].strip().split('\n')
 
-        # 杀掉所有相关的socat进程
+        # Kill all related socat processes
         for pid in pids:
             self.shell(f"sudo kill {pid}", module_ignore_errors=True)
 
-        # 确认和port的所有相关进程已停止
-        res: ShellResult = self.shell(f"ps aux | grep 'socat .*{device_path}' | grep -v grep", module_ignore_errors=True)
+        # Confirm all related processes for the port have stopped
+        res: ShellResult = \
+            self.shell(f"ps aux | grep 'socat .*{device_path}' | grep -v grep", module_ignore_errors=True)
+
         if res['stdout'].strip():
             log_message = f"Failed to stop socat process for device path {device_path}"
             logging.error(log_message)
@@ -3090,27 +3041,27 @@ Totals               6450                 6449
         return 0, f"Loopback stopped on {device_path}"
 
     def bridge(self, port1: str, port2: str):
-        pass
+        raise NotImplementedError("Bridge method is not implemented yet")
 
     def unbridge(self, port1: str, port2: str):
-        pass
+        raise NotImplementedError("Bridge method is not implemented yet")
 
     def bridge_remote(self, port: str, remote_host: str, remote_port: str):
-        pass
+        raise NotImplementedError("Bridge method is not implemented yet")
 
     def unbridge_remote(self, port: str):
-        pass
+        raise NotImplementedError("Bridge method is not implemented yet")
 
     def cleanup_all_console_sessions(self):
-        # 查找所有和serial port有关的进程
+        # Find all related serial port processes
         res: ShellResult = self.shell("sudo lsof -t /dev/C0-*", module_ignore_errors=True)
         pids = res['stdout'].strip().split('\n')
 
-        # 杀掉所有相关进程
+        # Kill all related processes
         for pid in pids:
             self.shell(f"sudo kill {pid}", module_ignore_errors=True)
 
-        # 检查serial port没有被任何进程使用
+        # Check that no serial ports are in use
         res: ShellResult = self.shell("sudo lsof /dev/C0-*", module_ignore_errors=True)
         if res['stdout'].strip() or res['stderr'].strip():
             log_message = "Failed to clean up all console sessions: some ports are still in use"
@@ -3119,6 +3070,7 @@ Totals               6450                 6449
 
         logging.info("Successfully cleaned up all console sessions")
         return 0, "All console sessions cleaned up successfully"
+
 
 def assert_exit_non_zero(shell_output):
     if shell_output['rc'] != 0:
