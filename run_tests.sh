@@ -16,3 +16,17 @@ cd /home/cliffchen/sonic-mgmt-int/tests
     -r \
     -t any,m0,mx,m1,t0,t1 \
     -u
+
+# ./run_tests.sh \
+#     -c telemetry/test_telemetry_poll.py \
+#     -a False \
+#     -e --skip_sanity \
+#     -e --disable_loganalyzer \
+#     -f ../ansible/vtestbed.yaml \
+#     -i ../ansible/bjw2,../ansible/veos \
+#     -m individual \
+#     -n testbed-vms-kvm-t1-lag \
+#     -O \
+#     -r \
+#     -t any,m0,mx,m1,t0,t1 \
+#     -u
