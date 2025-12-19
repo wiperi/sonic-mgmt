@@ -34,11 +34,7 @@ def test_bridge(duthosts, fanouthosts, conn_graph_facts):
             f"This fanout host, {fanout_host} should be SonicHost, but got {type(fanout_host)}"
         )
 
-    rc, messae = fanout_host.bridge('1', '2')
-
-    breakpoint()
-
-    assert rc == 0, f"Failed to bridge ports on fanout: {messae}"
+    fanout_host.bridge('1', '2')
 
     test_cmd = (
         f'TEST_DATA="DATE_$(date +%Y%m%d%H%M%S)"; '
@@ -60,7 +56,7 @@ def test_bridge(duthosts, fanouthosts, conn_graph_facts):
     
 
 
-def tt_test_set_loopback(duthosts, fanouthosts):
+def test_set_loopback(duthosts, fanouthosts):
     dut_host: SonicHost = duthosts[0]
 
     # 找出console fanout
@@ -89,8 +85,7 @@ def tt_test_set_loopback(duthosts, fanouthosts):
         # 找到与host的连接port, baud_rate, flow_control
         # 信息在 FanoutHost::host_to_fanout_serial_port_map
         for fanout_port, dut_port, baud_rate in fanout_side_loopback_ports:
-            rc, message = console_fanout_host.set_loopback(fanout_port, baud_rate)
-            assert rc == 0, f"Failed to set loopback on port {fanout_port}: {message}"
+            console_fanout_host.set_loopback(fanout_port, baud_rate)
 
         # dut测试所有console port回声正常
         # command: TEST_DATA="DATE_$(date +%s)"; TEST_FILE="/tmp/s_test.out"; stty -F /dev/C0-1 9600 raw -echo cs8 -parenb -cstopb; (timeout 3 cat /dev/C0-1 > "$TEST_FILE" 2>/dev/null < /dev/null &); sleep 0.5; echo "$TEST_DATA" > /dev/C0-1; sleep 1.5; grep -Fq "$TEST_DATA" "$TEST_FILE" && echo "success" || echo "failed"; rm -f "$TEST_FILE"

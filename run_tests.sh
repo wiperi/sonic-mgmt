@@ -30,3 +30,16 @@ cd /home/cliffchen/sonic-mgmt-int/tests
 #     -r \
 #     -t any,m0,mx,m1,t0,t1 \
 #     -u
+
+# ./run_tests.sh \
+#     -c bgp/test_bgp_fact.py \
+#     -e --skip_sanity \
+#     -e --disable_loganalyzer \
+#     -f ../ansible/testbed.yaml \
+#     -i ../ansible/bjw,../ansible/veos \
+#     -m individual \
+#     -n <testbed-name> \
+#     -o \
+#     -O \
+#     -t any,mx \
+#     -u
