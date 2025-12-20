@@ -1,0 +1,5 @@
+StartDevice,StartPort,EndDevice,EndPort,BaudRate,FlowControl
+bjw3-can-720dt-9,1,bjw3-can-720dt-leaf-27,1,9600,0
+bjw3-can-720dt-9,2,bjw3-can-720dt-leaf-27,2,9600,0
+bjw3-can-720dt-9,3,bjw3-can-720dt-leaf-27,3,9600,0
+bjw3-can-720dt-9,4,bjw3-can-720dt-leaf-27,4,9600,0
