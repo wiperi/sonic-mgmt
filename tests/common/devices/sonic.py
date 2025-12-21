@@ -2995,7 +2995,7 @@ Totals               6450                 6449
             logging.error(error_msg)
             raise RuntimeError(error_msg)
 
-    def set_loopback(self, port: str, baud_rate: str) -> None:
+    def set_loopback(self, port: str, baud_rate: str = '9600', flow_control: bool = False) -> None:
         """Set loopback on the specified port. Raises RuntimeError on failure."""
         device_path = f"/dev/C0-{port}"
 
@@ -3003,11 +3003,14 @@ Totals               6450                 6449
         self._check_device_path_exists(device_path)
         self._check_device_path_not_in_use(device_path)
 
+        # Set hardware flow control option
+        crtscts_val = "1" if flow_control else "0"
+
         # Execute loopback command
         command = (
             f"sudo socat -d -d "
             f"FILE:{device_path},raw,echo=0,nonblock,b{baud_rate},cs8,"
-            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0,icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
+            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts={crtscts_val},icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
             f"EXEC:'/bin/cat' "
             f"& echo $! "
         )
@@ -3043,7 +3046,7 @@ Totals               6450                 6449
 
         logging.info(f"Successfully stopped socat loopback on port {port}")
 
-    def bridge(self, port1: str, port2: str, baud_rate: str = "9600") -> None:
+    def bridge(self, port1: str, port2: str, baud_rate: str = "9600", flow_control: bool = False) -> None:
         """Bridge two ports together. Raises RuntimeError on failure."""
         device_path1 = f"/dev/C0-{port1}"
         device_path2 = f"/dev/C0-{port2}"
@@ -3054,13 +3057,16 @@ Totals               6450                 6449
         self._check_device_path_not_in_use(device_path1)
         self._check_device_path_not_in_use(device_path2)
 
+        # Set hardware flow control option
+        crtscts_val = "1" if flow_control else "0"
+
         # Execute bridge command
         command = (
             f"sudo socat -d -d "
             f"FILE:{device_path1},raw,echo=0,nonblock,b{baud_rate},cs8,"
-            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0,icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
+            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts={crtscts_val},icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
             f"FILE:{device_path2},raw,echo=0,nonblock,b{baud_rate},cs8,"
-            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts=0,icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
+            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts={crtscts_val},icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
             f"& echo $! "
         )
 
