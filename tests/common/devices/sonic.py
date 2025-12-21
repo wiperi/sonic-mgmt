@@ -10,7 +10,6 @@ import sys
 
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Any
 
 from ansible import constants as ansible_constants
 from ansible.plugins.loader import connection_loader
@@ -3092,14 +3091,15 @@ Totals               6450                 6449
 
         # Kill all related socat processes
         for pid in pids:
-            if pid:  # Skip empty strings
-                self.shell(f"sudo kill {pid}", module_ignore_errors=True)
+            self.shell(f"sudo kill {pid}", module_ignore_errors=True)
 
         # Confirm all related processes have stopped
-        res: ShellResult = self.shell(
-            f"ps aux | grep -E 'socat.*{device_path1}.*{device_path2}|socat.*{device_path2}.*{device_path1}' | grep -v grep",
-            module_ignore_errors=True
-        )
+            res: ShellResult = self.shell(
+                f"ps aux | "
+                f"grep -E 'socat.*{device_path1}.*{device_path2}|socat.*{device_path2}.*{device_path1}' | "
+                f"grep -v grep",
+                module_ignore_errors=True
+            )
 
         if res['stdout'].strip():
             error_msg = f"Failed to stop bridge process between {device_path1} and {device_path2}"
@@ -3108,11 +3108,96 @@ Totals               6450                 6449
 
         logging.info(f"Successfully unbridged ports {port1} and {port2}")
 
-    def bridge_remote(self, port: str, remote_host: str, remote_port: str):
-        raise NotImplementedError("Bridge method is not implemented yet")
+    def bridge_remote(
+        self, port: str, remote_addr: str, baud_rate: str = "9600", flow_control: bool = False
+    ) -> None:
+        """
+        Bridge a local console port to a remote virtual serial port via TCP socket.
 
-    def unbridge_remote(self, port: str):
-        raise NotImplementedError("Bridge method is not implemented yet")
+        This method bridges a console port on the console switch leaf fanout to a remote
+        virtual serial console port via socket. It allows interactive tests between
+        SONiC console server and a virtual DTE.
+
+        Args:
+            port: Local console port name (e.g., "1", "2")
+            remote_addr: Remote address in "host:port" format (e.g., "192.168.1.100:5000")
+            baud_rate: Baud rate for the local serial port (default: "9600")
+            flow_control: Enable hardware flow control (RTS/CTS) (default: False)
+
+        Raises:
+            RuntimeError: If the bridge operation fails
+        """
+        device_path = f"/dev/C0-{port}"
+
+        # Check if device path exists and is not in use (will raise on error)
+        self._check_device_path_exists(device_path)
+        self._check_device_path_not_in_use(device_path)
+
+        # Set hardware flow control option
+        crtscts_val = "1" if flow_control else "0"
+
+        # Execute bridge command: local serial port <-> remote TCP socket
+        command = (
+            f"sudo socat -d -d "
+            f"FILE:{device_path},raw,echo=0,nonblock,b{baud_rate},cs8,"
+            f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts={crtscts_val},icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
+            f"TCP:{remote_addr} "
+            f"& echo $! "
+        )
+
+        res: ShellResult = self.shell(command, module_ignore_errors=True)
+        if res['failed']:
+            error_msg = f"Failed to bridge port {port} to {remote_addr}: {res.get('stderr', '')}"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        logging.info(f"Successfully bridged port {port} to remote {remote_addr}")
+
+    def unbridge_remote(self, port: str, remote_addr: str = None) -> None:
+        """
+        Remove bridge between a local console port and a remote host.
+
+        Args:
+            port: Local console port name (e.g., "1", "2")
+            remote_addr: Remote address in "host:port" format (optional, for more precise matching)
+
+        Raises:
+            RuntimeError: If the unbridge operation fails
+        """
+        device_path = f"/dev/C0-{port}"
+
+        # Build grep pattern
+        pattern = ''
+        if remote_addr:
+            pattern = f"socat.*{device_path}.*TCP:{remote_addr}"
+        else:
+            pattern = f"socat.*{device_path}.*TCP:"
+
+        # Find all related socat processes
+        res: ShellResult = self.shell(f"pgrep -f '{pattern}'", module_ignore_errors=True)
+        pids = res['stdout'].strip().split('\n') if res['stdout'].strip() else []
+
+        if not pids or pids == ['']:
+            error_msg = f"No remote bridge found for port {port}"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        # Kill all related socat processes
+        for pid in pids:
+            self.shell(f"sudo kill {pid}", module_ignore_errors=True)
+
+        # Confirm all related processes have stopped
+        res: ShellResult = self.shell(
+            f"ps aux | grep -E '{pattern}' | grep -v grep",
+            module_ignore_errors=True
+        )
+
+        if res['stdout'].strip():
+            error_msg = f"Failed to stop remote bridge process for port {port}"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
+
+        logging.info(f"Successfully unbridged remote connection for port {port}")
 
     def cleanup_all_console_sessions(self) -> None:
         """Clean up all console sessions. Raises RuntimeError on failure."""
