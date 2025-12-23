@@ -51,7 +51,13 @@ def test_set_loopback(duthosts, fanouthosts, conn_graph_facts):
             assert rc == 0, f"Failed to set loopback on port {fanout_port}: {message}"
 
         # dut测试所有console port回声正常
-        # command: TEST_DATA="DATE_$(date +%s)"; TEST_FILE="/tmp/s_test.out"; stty -F /dev/C0-1 9600 raw -echo cs8 -parenb -cstopb; (timeout 3 cat /dev/C0-1 > "$TEST_FILE" 2>/dev/null < /dev/null &); sleep 0.5; echo "$TEST_DATA" > /dev/C0-1; sleep 1.5; grep -Fq "$TEST_DATA" "$TEST_FILE" && echo "success" || echo "failed"; rm -f "$TEST_FILE"
+        # command: TEST_DATA="DATE_$(date +%s)";
+        # TEST_FILE="/tmp/s_test.out"; stty -F
+        # /dev/C0-1 9600 raw -echo cs8 -parenb -cstopb;
+        # (timeout 3 cat /dev/C0-1 > "$TEST_FILE" 2>/dev/null < /dev/null &); sleep 0.5;
+        # echo "$TEST_DATA" > /dev/C0-1; sleep 1.5;
+        # grep -Fq "$TEST_DATA" "$TEST_FILE" && echo "success" || echo "failed";
+        # rm -f "$TEST_FILE"
         failed_ports = []
 
         for fanout_port, dut_port, baud_rate in fanout_side_loopback_ports:

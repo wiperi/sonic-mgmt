@@ -11,12 +11,6 @@ from tests.common.devices.aos import AosHost
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class SerialPortMapping():
-    dut_name: str
-    dut_port: str
-    baud_rate: str
-    flow_control: str
 
 @dataclass
 class SerialPortMapping():

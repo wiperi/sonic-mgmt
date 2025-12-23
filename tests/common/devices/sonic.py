@@ -3013,13 +3013,19 @@ Totals               6450                 6449
             logging.error(error_msg)
             raise RuntimeError(error_msg)
 
-    def _get_serial_device_prefix(self) -> str:
+    def _get_serial_device_path(self, port: str) -> str:
         """
-        Get the serial device path prefix from platform-specific configuration.
-        
+        Get the full serial device path for a given port.
+
+        Args:
+            port: Port name (e.g., "1", "2")
+
         Returns:
-            str: The device prefix (e.g., "/dev/C0", "/dev/ttyUSB")
+            str: The full device path (e.g., "/dev/C0-1", "/dev/ttyUSB-1")
         """
+
+        # Reads udevprefix.conf from the platform directory to determine the correct device prefix
+        # Falls back to /dev/ttyUSB if the config file doesn't exist
         script = '''
 from sonic_py_common import device_info
 import os
@@ -3034,18 +3040,21 @@ else:
     device_prefix = "/dev/ttyUSB"
 
 print(device_prefix)
-'''
-        res: ShellResult = self.shell(f'python3 -c "{script}"', module_ignore_errors=True)
+    '''
+        cmd = f"python3 << 'EOF'\n{script}\nEOF"
+        res: ShellResult = self.shell(cmd, module_ignore_errors=True)
+
         if res['rc'] != 0 or not res['stdout'].strip():
             logging.warning("Failed to get serial device prefix, using default /dev/ttyUSB")
-            return "/dev/ttyUSB"
+            device_prefix = "/dev/ttyUSB"
+        else:
+            device_prefix = res['stdout'].strip()
 
-        return res['stdout'].strip()
+        return f"{device_prefix}{port}"
 
     def set_loopback(self, port: str, baud_rate: str = '9600', flow_control: bool = False) -> None:
         """Set loopback on the specified port. Raises RuntimeError on failure."""
-        device_prefix = self._get_serial_device_prefix()
-        device_path = f"{device_prefix}-{port}"
+        device_path = self._get_serial_device_path(port)
 
         # Check if device path exists and is not in use (will raise on error)
         self._check_device_path_exists(device_path)
@@ -3074,8 +3083,7 @@ print(device_prefix)
     def unset_loopback(self, port: str) -> None:
         """Unset loopback on the specified port. Raises RuntimeError on failure."""
         # Find all related socat processes
-        device_prefix = self._get_serial_device_prefix()
-        device_path = f"{device_prefix}-{port}"
+        device_path = self._get_serial_device_path(port)
 
         res: ShellResult = self.shell(f"pgrep -f 'socat .*{device_path}'", module_ignore_errors=True)
         pids = res['stdout'].strip().split('\n')
@@ -3099,9 +3107,8 @@ print(device_prefix)
 
     def bridge(self, port1: str, port2: str, baud_rate: str = "9600", flow_control: bool = False) -> None:
         """Bridge two ports together. Raises RuntimeError on failure."""
-        device_prefix = self._get_serial_device_prefix()
-        device_path1 = f"{device_prefix}-{port1}"
-        device_path2 = f"{device_prefix}-{port2}"
+        device_path1 = self._get_serial_device_path(port1)
+        device_path2 = self._get_serial_device_path(port2)
 
         # Check if both device paths exist and are not in use (will raise on error)
         self._check_device_path_exists(device_path1)
@@ -3132,9 +3139,8 @@ print(device_prefix)
 
     def unbridge(self, port1: str, port2: str) -> None:
         """Remove bridge between two ports. Raises RuntimeError on failure."""
-        device_prefix = self._get_serial_device_prefix()
-        device_path1 = f"{device_prefix}-{port1}"
-        device_path2 = f"{device_prefix}-{port2}"
+        device_path1 = self._get_serial_device_path(port1)
+        device_path2 = self._get_serial_device_path(port2)
 
         # Find all related socat processes for both ports
         res: ShellResult = self.shell(
@@ -3155,12 +3161,12 @@ print(device_prefix)
         time.sleep(0.5)
 
         # Confirm all related processes have stopped
-            res: ShellResult = self.shell(
-                f"ps aux | "
-                f"grep -E 'socat.*{device_path1}.*{device_path2}|socat.*{device_path2}.*{device_path1}' | "
-                f"grep -v grep",
-                module_ignore_errors=True
-            )
+        res: ShellResult = self.shell(
+            f"ps aux | "
+            f"grep -E 'socat.*{device_path1}.*{device_path2}|socat.*{device_path2}.*{device_path1}' | "
+            f"grep -v grep",
+            module_ignore_errors=True
+        )
 
         if res['stdout'].strip():
             error_msg = f"Failed to stop bridge process between {device_path1} and {device_path2}"
@@ -3188,8 +3194,7 @@ print(device_prefix)
         Raises:
             RuntimeError: If the bridge operation fails
         """
-        device_prefix = self._get_serial_device_prefix()
-        device_path = f"{device_prefix}-{port}"
+        device_path = self._get_serial_device_path(port)
 
         # Check if device path exists and is not in use (will raise on error)
         self._check_device_path_exists(device_path)
@@ -3226,8 +3231,7 @@ print(device_prefix)
         Raises:
             RuntimeError: If the unbridge operation fails
         """
-        device_prefix = self._get_serial_device_prefix()
-        device_path = f"{device_prefix}-{port}"
+        device_path = self._get_serial_device_path(port)
 
         # Build grep pattern
         pattern = ''
@@ -3267,8 +3271,14 @@ print(device_prefix)
     def cleanup_all_console_sessions(self) -> None:
         """Clean up all console sessions. Raises RuntimeError on failure."""
         device_prefix = self._get_serial_device_prefix()
+        # Build the pattern based on whether prefix has trailing dash
+        if device_prefix.endswith('-'):
+            pattern = f"{device_prefix}*"
+        else:
+            pattern = f"{device_prefix}-*"
+
         # Find all related serial port processes
-        res: ShellResult = self.shell(f"sudo lsof -t {device_prefix}-*", module_ignore_errors=True)
+        res: ShellResult = self.shell(f"sudo lsof -t {pattern}", module_ignore_errors=True)
         pids = res['stdout'].strip().split('\n')
 
         # Kill all related processes
@@ -3276,7 +3286,7 @@ print(device_prefix)
             self.shell(f"sudo kill {pid}", module_ignore_errors=True)
 
         # Check that no serial ports are in use
-        res: ShellResult = self.shell(f"sudo lsof {device_prefix}-*", module_ignore_errors=True)
+        res: ShellResult = self.shell(f"sudo lsof {pattern}", module_ignore_errors=True)
         if res['stdout'].strip() or res['stderr'].strip():
             error_msg = "Failed to clean up all console sessions: some ports are still in use"
             logging.error(error_msg)
