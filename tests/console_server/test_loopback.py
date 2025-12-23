@@ -23,7 +23,7 @@ def test_set_loopback(duthosts, fanouthosts, conn_graph_facts):
 
     # 找出console fanout
     console_fanouts: list[FanoutHost] = [
-        fanout for fanout in fanouthosts.values() if type(fanout.host) is SonicHost and fanout.host.is_console_switch
+        fanout for fanout in fanouthosts.values() if type(fanout.host) is SonicHost and fanout.host.is_console_switch()
     ]
 
     assert len(console_fanouts) > 0, "No console fanout found in testbed"
