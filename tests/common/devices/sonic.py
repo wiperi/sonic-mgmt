@@ -3035,6 +3035,8 @@ Totals               6450                 6449
         for pid in pids:
             self.shell(f"sudo kill {pid}", module_ignore_errors=True)
 
+        time.sleep(0.5)
+
         # Confirm all related processes for the port have stopped
         res: ShellResult = \
             self.shell(f"ps aux | grep 'socat .*{device_path}' | grep -v grep", module_ignore_errors=True)
@@ -3098,6 +3100,8 @@ Totals               6450                 6449
         # Kill all related socat processes
         for pid in pids:
             self.shell(f"sudo kill {pid}", module_ignore_errors=True)
+
+        time.sleep(0.5)
 
         # Confirm all related processes have stopped
             res: ShellResult = self.shell(
@@ -3191,6 +3195,8 @@ Totals               6450                 6449
         # Kill all related socat processes
         for pid in pids:
             self.shell(f"sudo kill {pid}", module_ignore_errors=True)
+
+        time.sleep(0.5)
 
         # Confirm all related processes have stopped
         res: ShellResult = self.shell(
