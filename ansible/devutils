@@ -6,7 +6,7 @@ from devutil import conn_graph_helper
 from devutil.task_runner import TaskRunner
 from devutil.ssh_utils import SSHClient
 from devutil.inv_helpers import HostManager
-from tabulate import tabulate
+# from tabulate import tabulate
 import time
 import subprocess
 import json
@@ -191,7 +191,7 @@ def show_data_output(header, data, json_output=False, output_file=None):
     if json_output:
         output_content = json.dumps(sorted(data, key=lambda x: x['Host']), indent=4)
     else:
-        output_content = tabulate(sorted(data, key=lambda x: x[0]), headers=header, tablefmt='grid')
+        output_content = str(sorted(data, key=lambda x: x[0]), headers=header, tablefmt='grid')
 
     if output_file:
         try:
