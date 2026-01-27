@@ -8,12 +8,11 @@ These tests verify:
 """
 import logging
 import time
-import pexpect
+
 import pytest
 from typing import Dict, Optional
 from typing_extensions import TypedDict
 
-from tests.common.devices.fanout import FanoutHost
 from tests.common.devices.sonic import SonicHost
 from tests.common.helpers.assertions import pytest_assert
 from tests.common.utilities import wait_until
@@ -24,8 +23,8 @@ class LineStatus(TypedDict):
     oper_state: str
     state_duration: str
 
-# Use 'any' topology to run tests on any testbed (including virtual and physical)
-pytestmark = [pytest.mark.topology("any")]
+
+pytestmark = [pytest.mark.topology("c0")]
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,6 @@ HEARTBEAT_DETECT_SEC = 2    # Time for heartbeat to be detected and line status 
 
 @pytest.fixture(scope="module")
 def console_fanout(duthosts, fanouthosts):
-    breakpoint()
     """
     Find the console fanout host in the testbed.
 
@@ -258,7 +256,6 @@ def test_oper_state_transition(
     duthosts, console_fanout, dut_console_lines,
     dce_service_is_running, cleanup_console_sessions
 ):
-    breakpoint()
     """
     Test console monitor heartbeat detection functionality.
 
@@ -315,9 +312,15 @@ def test_oper_state_transition(
     logger.info(f"Line statuses after heartbeat enabled: {all_statuses}")
     for line_id, line_info in all_statuses.items():
         if line_id == target_line:
-            pytest_assert(line_info['oper_state'] == 'Up', f"Target line {line_id} should be 'Up', got '{line_info['oper_state']}'")
+            pytest_assert(
+                line_info['oper_state'] == 'Up',
+                f"Target line {line_id} should be 'Up', got '{line_info['oper_state']}'"
+            )
         else:
-            pytest_assert(line_info['oper_state'] == 'Unknown', f"Line {line_id} should remain 'Unknown', got '{line_info['oper_state']}'")
+            pytest_assert(
+                line_info['oper_state'] == 'Unknown',
+                f"Line {line_id} should remain 'Unknown', got '{line_info['oper_state']}'"
+            )
 
     # Step 4: Disable heartbeat on fanout side
     logger.info("Step 4: Disabling heartbeat on fanout...")
