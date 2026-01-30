@@ -1,0 +1,3 @@
+[submodule "submodules/consoled"]
+	path = submodules/consoled
+	url = https://github.com/wiperi/consoled.git
