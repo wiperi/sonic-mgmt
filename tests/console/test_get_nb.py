@@ -10,112 +10,186 @@ logger = logging.getLogger(__name__)
 
 pytestmark = [pytest.mark.topology("any")]
 
-class TestGetNeighborDemo:
-    """Demo class showing two ways to get neighbor devices"""
+def test_get_neighbors_via_nbrhosts(nbrhosts, tbinfo, ansible_adhoc):
 
-    def test_get_neighbors_via_nbrhosts(self, nbrhosts, tbinfo, adhoc):
+    breakpoint()
 
-        breakpoint()
+    """
+    方式一：使用 nbrhosts fixture（推荐）
 
-        """
-        方式一：使用 nbrhosts fixture（推荐）
+    nbrhosts 是一个字典:
+    - key: neighbor 名称 (如 "ARISTA01T1")
+    - value: NeighborDevice 对象，包含 'host' 和 'conf'
+    """
+    logger.info("=== 方式一: 使用 nbrhosts fixture ===")
 
-        nbrhosts 是一个字典:
-        - key: neighbor 名称 (如 "ARISTA01T1")
-        - value: NeighborDevice 对象，包含 'host' 和 'conf'
-        """
-        logger.info("=== 方式一: 使用 nbrhosts fixture ===")
+    if not nbrhosts:
+        logger.warning("No neighbors found in this topology")
+        pytest.skip("No VMs in this topology")
 
-        if not nbrhosts:
-            logger.warning("No neighbors found in this topology")
-            pytest.skip("No VMs in this topology")
+    # 打印所有 neighbor 名称
+    logger.info(f"All neighbor names: {list(nbrhosts.keys())}")
 
-        # 打印所有 neighbor 名称
-        logger.info(f"All neighbor names: {list(nbrhosts.keys())}")
+    # 遍历所有 neighbors
+    for nbr_name, nbr_device in nbrhosts.items():
+        logger.info(f"\n--- Neighbor: {nbr_name} ---")
 
-        # 遍历所有 neighbors
-        for nbr_name, nbr_device in nbrhosts.items():
-            logger.info(f"\n--- Neighbor: {nbr_name} ---")
+        # 获取 neighbor 的 host 对象 (EosHost/SonicHost/CiscoHost)
+        nbr_host = nbr_device['host']
 
-            # 获取 neighbor 的 host 对象 (EosHost/SonicHost/CiscoHost)
-            nbr_host = nbr_device['host']
+        # 获取 neighbor 的配置信息
+        nbr_conf = nbr_device['conf']
 
-            # 获取 neighbor 的配置信息
-            nbr_conf = nbr_device['conf']
+        logger.info(f"Neighbor config: {nbr_conf}")
 
-            logger.info(f"Neighbor config: {nbr_conf}")
+        # 在 neighbor 上执行命令示例
+        # result = nbr_host.command("show version")
+        # logger.info(f"Version output: {result['stdout']}")
 
-            # 在 neighbor 上执行命令示例
-            # result = nbr_host.command("show version")
-            # logger.info(f"Version output: {result['stdout']}")
 
-    def test_get_neighbors_via_tbinfo(self, tbinfo):
-        """
-        方式二：通过 tbinfo 获取拓扑信息
+# def test_get_dev_server_ip(conn_graph_facts, duthosts, enum_rand_one_per_hwsku_hostname):
 
-        tbinfo['topo']['properties']['topology']['VMs'] 包含 VM 定义
-        tbinfo['topo']['properties']['configuration'] 包含详细配置
-        """
-        logger.info("=== 方式二: 使用 tbinfo fixture ===")
+#     breakpoint()
 
-        # 检查是否有 VMs
-        if 'VMs' not in tbinfo['topo']['properties']['topology']:
-            logger.warning("No VMs in topology")
-            pytest.skip("No VMs in this topology")
+#     duthost = duthosts[enum_rand_one_per_hwsku_hostname]
+#     dut_hostname = duthost.hostname
+    
+#     # 获取 Console Server 的 Management IP
+#     console_host = conn_graph_facts['device_console_info'][dut_hostname]['ManagementIp']
+    
+#     # 获取 Console Port 信息
+#     console_port = conn_graph_facts['device_console_link'][dut_hostname]['ConsolePort']['peerport']
+#     console_device = conn_graph_facts['device_console_link'][dut_hostname]['ConsolePort']['peerdevice']
 
-        # 获取所有 VMs 的定义
-        vms = tbinfo['topo']['properties']['topology']['VMs']
 
-        if not vms:
-            pytest.skip("VMs is empty")
+def test_get_server_info(request, tbinfo, vmhost):
+    """获取 testbed 对应的 dev server 信息"""
 
-        logger.info(f"All VM names: {list(vms.keys())}")
+    breakpoint()
+    
+    # 从 tbinfo 获取基本信息
+    testbed_name = tbinfo['conf-name']  # 'testbed-bjw3-can-mc0-720dt-9'
+    server = tbinfo['server']            # 'server_bjw3_9'
+    vm_base = tbinfo.get('vm_base')      # 'VM04080'
+    
+    # 获取 inventory 文件
+    inv_files = utilities.get_inventory_files(request)
+    
+    # 获取 server 的详细变量
+    server_vars = utilities.get_test_server_vars(inv_files, server)
+    server_ip = server_vars.get('ansible_host')
+    
+    print(f"Testbed: {testbed_name}")
+    print(f"Server: {server}")
+    print(f"Server IP: {server_ip}")
+    print(f"VM Base: {vm_base}")
 
-        # 遍历 VMs 获取基本信息
-        for vm_name, vm_info in vms.items():
-            logger.info(f"\n--- VM: {vm_name} ---")
-            logger.info(f"  vlans: {vm_info.get('vlans', [])}")
-            logger.info(f"  vm_offset: {vm_info.get('vm_offset', 'N/A')}")
+# class TestGetNeighborDemo:
+#     """Demo class showing two ways to get neighbor devices"""
 
-        # 获取 neighbor 的详细配置
-        configurations = tbinfo['topo']['properties'].get('configuration', {})
+#     def test_get_neighbors_via_nbrhosts(self, nbrhosts, tbinfo, adhoc):
 
-        for vm_name in vms.keys():
-            if vm_name in configurations:
-                vm_config = configurations[vm_name]
-                logger.info(f"\n--- {vm_name} Configuration ---")
+#         breakpoint()
 
-                # BGP 配置
-                if 'bgp' in vm_config:
-                    logger.info(f"  BGP ASN: {vm_config['bgp'].get('asn', 'N/A')}")
-                    logger.info(f"  BGP Peers: {vm_config['bgp'].get('peers', {})}")
+#         """
+#         方式一：使用 nbrhosts fixture（推荐）
 
-                # 接口配置
-                if 'interfaces' in vm_config:
-                    logger.info(f"  Interfaces: {list(vm_config['interfaces'].keys())}")
+#         nbrhosts 是一个字典:
+#         - key: neighbor 名称 (如 "ARISTA01T1")
+#         - value: NeighborDevice 对象，包含 'host' 和 'conf'
+#         """
+#         logger.info("=== 方式一: 使用 nbrhosts fixture ===")
 
-    def test_combined_example(self, nbrhosts, tbinfo):
-        """
-        组合使用示例：使用 tbinfo 获取配置，用 nbrhosts 执行操作
-        """
-        logger.info("=== 组合使用示例 ===")
+#         if not nbrhosts:
+#             logger.warning("No neighbors found in this topology")
+#             pytest.skip("No VMs in this topology")
 
-        if not nbrhosts:
-            pytest.skip("No VMs in this topology")
+#         # 打印所有 neighbor 名称
+#         logger.info(f"All neighbor names: {list(nbrhosts.keys())}")
 
-        configurations = tbinfo['topo']['properties'].get('configuration', {})
+#         # 遍历所有 neighbors
+#         for nbr_name, nbr_device in nbrhosts.items():
+#             logger.info(f"\n--- Neighbor: {nbr_name} ---")
 
-        for nbr_name, nbr_device in nbrhosts.items():
-            # 从 tbinfo 获取配置
-            nbr_conf_from_tbinfo = configurations.get(nbr_name, {})
+#             # 获取 neighbor 的 host 对象 (EosHost/SonicHost/CiscoHost)
+#             nbr_host = nbr_device['host']
 
-            # 从 nbrhosts 获取配置（两者应该相同）
-            nbr_conf_from_fixture = nbr_device['conf']
+#             # 获取 neighbor 的配置信息
+#             nbr_conf = nbr_device['conf']
 
-            logger.info(f"\nNeighbor: {nbr_name}")
-            logger.info(f"  Config from tbinfo: {nbr_conf_from_tbinfo.get('bgp', {}).get('asn', 'N/A')}")
-            logger.info(f"  Config from nbrhosts: {nbr_conf_from_fixture.get('bgp', {}).get('asn', 'N/A')}")
+#             logger.info(f"Neighbor config: {nbr_conf}")
 
-            # 使用 nbrhosts 的 host 对象执行操作
-            # nbr_host = nbr_device['host']
-            # nbr_host.command("show ip bgp summary")
+#             # 在 neighbor 上执行命令示例
+#             # result = nbr_host.command("show version")
+#             # logger.info(f"Version output: {result['stdout']}")
+
+#     def test_get_neighbors_via_tbinfo(self, tbinfo):
+#         """
+#         方式二：通过 tbinfo 获取拓扑信息
+
+#         tbinfo['topo']['properties']['topology']['VMs'] 包含 VM 定义
+#         tbinfo['topo']['properties']['configuration'] 包含详细配置
+#         """
+#         logger.info("=== 方式二: 使用 tbinfo fixture ===")
+
+#         # 检查是否有 VMs
+#         if 'VMs' not in tbinfo['topo']['properties']['topology']:
+#             logger.warning("No VMs in topology")
+#             pytest.skip("No VMs in this topology")
+
+#         # 获取所有 VMs 的定义
+#         vms = tbinfo['topo']['properties']['topology']['VMs']
+
+#         if not vms:
+#             pytest.skip("VMs is empty")
+
+#         logger.info(f"All VM names: {list(vms.keys())}")
+
+#         # 遍历 VMs 获取基本信息
+#         for vm_name, vm_info in vms.items():
+#             logger.info(f"\n--- VM: {vm_name} ---")
+#             logger.info(f"  vlans: {vm_info.get('vlans', [])}")
+#             logger.info(f"  vm_offset: {vm_info.get('vm_offset', 'N/A')}")
+
+#         # 获取 neighbor 的详细配置
+#         configurations = tbinfo['topo']['properties'].get('configuration', {})
+
+#         for vm_name in vms.keys():
+#             if vm_name in configurations:
+#                 vm_config = configurations[vm_name]
+#                 logger.info(f"\n--- {vm_name} Configuration ---")
+
+#                 # BGP 配置
+#                 if 'bgp' in vm_config:
+#                     logger.info(f"  BGP ASN: {vm_config['bgp'].get('asn', 'N/A')}")
+#                     logger.info(f"  BGP Peers: {vm_config['bgp'].get('peers', {})}")
+
+#                 # 接口配置
+#                 if 'interfaces' in vm_config:
+#                     logger.info(f"  Interfaces: {list(vm_config['interfaces'].keys())}")
+
+#     def test_combined_example(self, nbrhosts, tbinfo):
+#         """
+#         组合使用示例：使用 tbinfo 获取配置，用 nbrhosts 执行操作
+#         """
+#         logger.info("=== 组合使用示例 ===")
+
+#         if not nbrhosts:
+#             pytest.skip("No VMs in this topology")
+
+#         configurations = tbinfo['topo']['properties'].get('configuration', {})
+
+#         for nbr_name, nbr_device in nbrhosts.items():
+#             # 从 tbinfo 获取配置
+#             nbr_conf_from_tbinfo = configurations.get(nbr_name, {})
+
+#             # 从 nbrhosts 获取配置（两者应该相同）
+#             nbr_conf_from_fixture = nbr_device['conf']
+
+#             logger.info(f"\nNeighbor: {nbr_name}")
+#             logger.info(f"  Config from tbinfo: {nbr_conf_from_tbinfo.get('bgp', {}).get('asn', 'N/A')}")
+#             logger.info(f"  Config from nbrhosts: {nbr_conf_from_fixture.get('bgp', {}).get('asn', 'N/A')}")
+
+#             # 使用 nbrhosts 的 host 对象执行操作
+#             # nbr_host = nbr_device['host']
+#             # nbr_host.command("show ip bgp summary")

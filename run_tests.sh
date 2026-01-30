@@ -4,10 +4,11 @@
 cd /home/cliffchen/sonic-mgmt-int/tests
 
 ./run_tests.sh \
-    -c console/test_console_monitor.py \
+    -c console/test_get_nb.py \
     -a False \
     -e --skip_sanity \
     -e --disable_loganalyzer \
+    -e "--neighbor_type=sonic" \
     -f ../ansible/testbed.yaml \
     -i ../ansible/bjw3,../ansible/veos \
     -m individual \

@@ -59,7 +59,7 @@ def console_fanout(duthosts, fanouthosts):
 @pytest.fixture(scope="module")
 def dut_console_lines(duthosts, console_fanout):
     """
-    Get the console line mappings between DUT and fanout.
+    Get the console line mappings between DUT and fanout. 
 
     Returns:
         list: List of tuples (fanout_port, dut_port, baud_rate) for lines connected to the DUT
@@ -344,3 +344,4 @@ def test_oper_state_transition(
     )
 
     logger.info("Test passed: Heartbeat detection working correctly")
+
