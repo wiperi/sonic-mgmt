@@ -298,7 +298,7 @@ class BridgeManager:
         Steps:
         1. Get VM's serial port from virsh
         2. Start socat on VM host: TCP-LISTEN:<bridge_port> <-> TCP:127.0.0.1:<vm_serial_port>
-        3. Start socat on fanout: FILE:<serial_device> <-> TCP:<vmhost_ip>:<bridge_port>
+        3. Use fanout's bridge_remote() to connect fanout serial port to VM host
 
         Args:
             duthost: DUT host object
@@ -330,9 +330,8 @@ class BridgeManager:
             logger.error(f"Cannot get IP for VM host {vmhost.hostname}")
             return None
 
-        # Get serial device path on fanout
-        # Assuming format like /dev/C0-<link_id>
-        fanout_device_path = f"/dev/C0-{link_id}"
+        # Get serial device path from fanout using SonicHost helper
+        fanout_device_path = fanout.host._get_serial_device_path(link_id)
 
         logger.info(f"Building bridge for link {link_id}:")
         logger.info(f"  VM serial port: {vm_serial_port}")
@@ -355,19 +354,14 @@ class BridgeManager:
             logger.error(f"Failed to start socat on VM host: {e}")
             return None
 
-        # Step 3: Start socat on fanout
-        # FILE:<serial_device>,raw,echo=0 TCP:<vmhost_ip>:<bridge_port>
-        fanout_socat_cmd = (
-            f"sudo socat -d -d FILE:{fanout_device_path},raw,echo=0 "
-            f"TCP:{vmhost_ip}:{bridge_port} &"
-        )
-        logger.info(f"Starting socat on fanout: {fanout_socat_cmd}")
+        # Step 3: Use fanout's bridge_remote() to connect fanout serial port to VM host
+        logger.info(f"Starting bridge_remote on fanout: port {link_id} -> {vmhost_ip}:{bridge_port}")
 
         try:
-            fanout.host.shell(fanout_socat_cmd)
+            fanout.host.bridge_remote(link_id, vmhost_ip, bridge_port)
             time.sleep(SOCAT_STARTUP_DELAY)
         except Exception as e:
-            logger.error(f"Failed to start socat on fanout: {e}")
+            logger.error(f"Failed to start bridge_remote on fanout: {e}")
             # Cleanup VM host socat
             self._cleanup_vmhost_socat(vmhost, bridge_port)
             return None
@@ -392,22 +386,18 @@ class BridgeManager:
         except Exception as e:
             logger.warning(f"Error cleaning up VM host socat: {e}")
 
-    def _cleanup_fanout_socat(self, fanout, device_path: str):
-        """Kill socat processes for a specific device on fanout."""
-        try:
-            fanout.host.shell(f"sudo pkill -f 'socat.*{device_path}'", module_ignore_errors=True)
-        except Exception as e:
-            logger.warning(f"Error cleaning up fanout socat: {e}")
-
     def cleanup_all_bridges(self):
         """Clean up all active bridges."""
         logger.info(f"Cleaning up {len(self.active_bridges)} bridges")
 
         for bridge in self.active_bridges:
+            # Cleanup fanout bridge using unbridge_remote
+            if self._fanout:
+                self._fanout.host.unbridge_remote(bridge.link_id)
+
+            # Cleanup VM host socat
             if self._vmhost:
                 self._cleanup_vmhost_socat(self._vmhost, bridge.bridge_port)
-            if self._fanout:
-                self._cleanup_fanout_socat(self._fanout, bridge.fanout_device_path)
 
         self.active_bridges.clear()
         logger.info("All bridges cleaned up")
@@ -517,6 +507,8 @@ def cleanup_console_sessions(duthosts):
 
 def test_dut_connected_to_fanout(duthost, fanouthosts):
 
+    import pdb; pdb.set_trace()
+
     # Get the first configured console line for testing
     console_facts = duthost.console_facts()['ansible_facts']['console_facts']
     configured_lines = list(console_facts.get('lines', {}).keys())
@@ -554,7 +546,6 @@ def test_oper_state_transition(
     6. Wait for heartbeat timeout, verify status returns to 'Unknown'
     """
 
-    import pdb; pdb.set_trace()
     duthost = duthosts[0]
 
     # Get the first configured console line for testing
