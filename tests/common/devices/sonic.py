@@ -3083,7 +3083,7 @@ print(device_prefix)
         # Execute loopback command
         command = (
             f"sudo socat -d -d "
-            f"FILE:{device_path},raw,nonblock,b{baud_rate},crtscts={crtscts_val} "
+            f"FILE:{device_path},raw,echo=0,nonblock,b{baud_rate},crtscts={crtscts_val} "
             f"EXEC:'/bin/cat' "
             f"& echo $! "
         )
@@ -3164,8 +3164,8 @@ print(device_prefix)
         # Execute bridge command
         command = (
             f"sudo socat -d -d "
-            f"FILE:{device_path1},raw,nonblock,b{baud_rate},crtscts={crtscts_val} "
-            f"FILE:{device_path2},raw,nonblock,b{baud_rate},crtscts={crtscts_val} "
+            f"FILE:{device_path1},raw,echo=0,nonblock,b{baud_rate},crtscts={crtscts_val} "
+            f"FILE:{device_path2},raw,echo=0,nonblock,b{baud_rate},crtscts={crtscts_val} "
             f"& echo $! "
         )
 
@@ -3258,7 +3258,7 @@ print(device_prefix)
         # Execute bridge command to remote host
         command = (
             f"sudo socat -d -d "
-            f"FILE:{device_path},raw,nonblock,b{baud_rate},crtscts={crtscts_val} "
+            f"FILE:{device_path},raw,echo=0,b{baud_rate},crtscts={crtscts_val} "
             f"TCP:{remote_host}:{remote_port} "
             f"& echo $! "
         )
@@ -3416,6 +3416,22 @@ print(device_prefix)
         all_statuses = self.get_console_line_statuses()
         line_info = all_statuses.get(str(line_id))
         return line_info['oper_state'] if line_info else None
+
+    def enable_console_heartbeat(self) -> None:
+        """
+        Enable console heartbeat on the DTE side.
+        Starts console-monitor-dte service and enables heartbeat sending.
+        """
+        self.shell("sudo systemctl start console-monitor-dte")
+        self.shell("sudo config console heartbeat enable")
+        logging.info("console-monitor-dte service started and heartbeat enabled")
+
+    def disable_console_heartbeat(self) -> None:
+        """
+        Disable console heartbeat on the DTE side.
+        """
+        self.shell("sudo config console heartbeat disable")
+        logging.info("console heartbeat disabled")
 
     def get_mgmt_ip(self):
         """
