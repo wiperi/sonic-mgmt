@@ -10,6 +10,7 @@ Testbed architecture:
     DUT (Console Switch, DCE) <--Serial--> Fanout <--socat/TCP--> VM Host <--virsh serial--> Neighbor VM (DTE)
 """
 import logging
+import pexpect
 import re
 import time
 from typing import Dict, List, Optional, Tuple
@@ -122,19 +123,18 @@ def get_vmhost_ip(vmhost) -> str:
     return vmhost.host.options['inventory_manager'].get_host(vmhost.hostname).vars.get('ansible_host', '')
 
 
-def get_serial_fanout_for_line(fanouthosts, duthosts, link_id: int):
+def get_serial_fanout_for_line(fanouthosts, duthost, link_id: int):
     """
     Find which fanout host has the serial connection for a given link_id.
 
     Args:
         fanouthosts: Dict of fanout hosts
-        duthosts: DUT hosts
+        duthost: DUT host
         link_id: Console line ID on DUT
 
     Returns:
         Tuple[FanoutHost, int]: (fanout_host, fanout_port) or (None, None) if not found
     """
-    duthost = duthosts[0]
     dut_hostname = duthost.hostname
 
     for fanout in fanouthosts.values():
@@ -318,14 +318,13 @@ class BridgeManager:
 # ==================== Fixtures ====================
 
 @pytest.fixture(scope="module")
-def serial_fanouts(fanouthosts, duthosts):
+def serial_fanouts(fanouthosts, duthost):
     """
     Get list of fanout hosts that have serial port connections to the DUT.
 
     Returns:
         List[FanoutHost]: List of fanout hosts with serial connections
     """
-    duthost = duthosts[0]
     dut_hostname = duthost.hostname
 
     serial_fanout_list = []
@@ -345,7 +344,7 @@ def serial_fanouts(fanouthosts, duthosts):
 
 
 @pytest.fixture(scope="function")
-def ensure_dce_service_running(duthosts):
+def ensure_dce_service_running(duthost, console_facts):
     """
     Ensure console-monitor-dce service is running on DUT before each test.
 
@@ -354,8 +353,6 @@ def ensure_dce_service_running(duthosts):
     2. Verifies console lines are configured
     3. Verifies console-monitor-dce.service is running
     """
-    duthost = duthosts[0]
-
     # Check if console feature is enabled in CONFIG_DB
     console_switch_config = duthost.shell(
         "sonic-db-cli CONFIG_DB HGET 'CONSOLE_SWITCH|console_mgmt' 'enabled'",
@@ -368,7 +365,6 @@ def ensure_dce_service_running(duthosts):
     logger.info("Console feature is enabled in CONFIG_DB")
 
     # Check console lines are configured (at least 1 line)
-    console_facts = duthost.console_facts()['ansible_facts']['console_facts']
     configured_lines = console_facts.get('lines', {})
     pytest_assert(
         len(configured_lines) > 0,
@@ -397,14 +393,13 @@ def bridge_manager():
 
 
 @pytest.fixture(scope="function")
-def cleanup_console_sessions(duthosts):
+def cleanup_console_sessions(duthost):
     """
     Cleanup fixture to clear all console sessions after each test.
     """
     yield
 
     # Cleanup on DUT side - clear any active lines
-    duthost = duthosts[0]
     try:
         console_facts = duthost.console_facts()['ansible_facts']['console_facts']
         for line_id, line_info in console_facts.get('lines', {}).items():
@@ -417,30 +412,29 @@ def cleanup_console_sessions(duthosts):
 
 # ==================== Test Cases ====================
 
-def test_dut_connected_to_fanout(duthost, fanouthosts):
-
-    import pdb; pdb.set_trace()
+def test_dut_connected_to_fanout(duthost, fanouthosts, console_facts):
 
     # Get the first configured console line for testing
-    console_facts = duthost.console_facts()['ansible_facts']['console_facts']
     configured_lines = list(console_facts.get('lines', {}).keys())
     pytest_assert(len(configured_lines) > 0, "No console lines configured")
 
     target_link_id = int(configured_lines[0])
     logger.info(f"Testing with link {target_link_id}")
     
-    fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, [duthost], target_link_id)
+    fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, duthost, target_link_id)
     pytest_assert(fanout is not None, f"No fanout found for link {target_link_id}")
     return
 
 
 
 def test_oper_state_transition(
-    duthosts,
+    duthost,
     fanouthosts,
     nbrhosts,
     tbinfo,
     vmhost,
+    creds,
+    console_facts,
     serial_fanouts,
     ensure_dce_service_running,
     bridge_manager: BridgeManager,
@@ -458,10 +452,7 @@ def test_oper_state_transition(
     6. Wait for heartbeat timeout, verify status returns to 'Unknown'
     """
 
-    duthost = duthosts[0]
-
     # Get the first configured console line for testing
-    console_facts = duthost.console_facts()['ansible_facts']['console_facts']
     configured_lines = list(console_facts.get('lines', {}).keys())
     pytest_assert(len(configured_lines) > 0, "No console lines configured")
 
@@ -484,11 +475,14 @@ def test_oper_state_transition(
     # Step 2: Find fanout and neighbor for target link
     logger.info(f"Step 2: Finding fanout and neighbor for link {target_link_id}...")
 
-    fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, duthosts, target_link_id)
+    fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, duthost, target_link_id)
     pytest_assert(fanout is not None, f"No fanout found for link {target_link_id}")
 
     neighbor_name, vm_name, neighbor_device = get_vm_base_neighbor(nbrhosts, tbinfo)
     pytest_assert(neighbor_name is not None, "No neighbor found in nbrhosts")
+
+    nbr_host = neighbor_device['host']
+    pytest_assert(isinstance(nbr_host, SonicHost), "Neighbor host is not a SonicHost")
 
     logger.info(f"Found fanout: {fanout.hostname}, port: {fanout_port}")
     logger.info(f"Found neighbor: {neighbor_name}, VM: {vm_name}")
@@ -510,14 +504,7 @@ def test_oper_state_transition(
     # Step 4: Ensure console-monitor-dte service is running and enable heartbeat on neighbor VM
     logger.info("Step 4: Ensuring console-monitor-dte service running and enabling heartbeat on neighbor VM...")
 
-    if neighbor_device:
-        nbr_host = neighbor_device['host']
-        if isinstance(nbr_host, SonicHost):
-            # Ensure console-monitor-dte service is running
-            nbr_host.shell("sudo systemctl start console-monitor-dte")
-            # Enable heartbeat sending
-            nbr_host.shell("sudo config console heartbeat enable")
-            logger.info("console-monitor-dte service running and heartbeat enabled on neighbor")
+    nbr_host.enable_console_heartbeat()
 
     # Step 5: Verify line status changes to 'Up'
     logger.info(f"Step 5: Waiting for line {target_link_id} to become 'Up'...")
@@ -538,14 +525,41 @@ def test_oper_state_transition(
                 f"Line {line_id} should remain 'Unknown', got '{line_info['oper_state']}'"
             )
 
+    # Step 5.1: Verify user can see the login prompt on the DCE side
+    logger.info("Step 5.1: Verifying login prompt visibility on DCE side...")
+
+    dutip = duthost.host.options['inventory_manager'].get_host(duthost.hostname).vars['ansible_host']
+    dutuser, dutpass = creds['sonicadmin_user'], creds['sonicadmin_password']
+
+    import pdb; pdb.set_trace()
+
+    try:
+        client = pexpect.spawn(
+            f"ssh {dutuser}@{dutip} -q -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+            f"'sudo connect line {target_link_id}'"
+        )
+        client.expect('[Pp]assword:', timeout=10)
+        client.sendline(dutpass)
+
+        # Wait for login prompt from neighbor VM
+        i = client.expect(['[Ll]ogin:', 'Cannot connect'], timeout=15)
+        pytest_assert(i == 0, f"Failed to see login prompt on line {target_link_id}")
+        logger.info("Successfully verified login prompt on DCE side")
+
+    except pexpect.exceptions.EOF:
+        pytest.fail("EOF reached while connecting to console line")
+    except pexpect.exceptions.TIMEOUT:
+        pytest.fail("Timeout reached while waiting for login prompt")
+    except Exception as e:
+        pytest.fail(f"Cannot connect to DUT host via SSH: {e}")
+    finally:
+        # Clear the console line after test
+        duthost.shell(f"sudo consutil clear {target_link_id}", module_ignore_errors=True)
+
     # Step 6: Stop heartbeat and verify status returns to 'Unknown'
     logger.info("Step 6: Stopping heartbeat and waiting for timeout...")
 
-    if neighbor_device:
-        nbr_host = neighbor_device['host']
-        if isinstance(nbr_host, SonicHost):
-            nbr_host.shell("sudo config console heartbeat disable")
-            logger.info("Stopped console-monitor-dte on neighbor")
+    nbr_host.disable_console_heartbeat()
 
     # Cleanup the bridge to stop all socat processes
     bridge_manager.cleanup_all_bridges()
@@ -558,3 +572,121 @@ def test_oper_state_transition(
     )
 
     logger.info("Test passed: Heartbeat detection and oper state transitions working correctly")
+
+
+@pytest.mark.skip(reason="Test needs to be reviewed")
+def test_filter_timeout(
+    duthost,
+    fanouthosts,
+    nbrhosts,
+    tbinfo,
+    vmhost,
+    creds,
+    console_facts,
+    serial_fanouts,
+    ensure_dce_service_running,
+    bridge_manager: BridgeManager,
+    cleanup_console_sessions
+):
+    """
+    Test data pass-through after filter timeout.
+
+    Verify user data passes through after filter timeout (when heartbeat is disabled).
+
+    Test steps:
+    1. Build console bridge and disable DTE heartbeat
+    2. Send short string from DTE side
+    3. Connect to DCE side and read output
+    4. Verify DCE receives the exact string sent
+    """
+
+    # Get the first configured console line for testing
+    configured_lines = list(console_facts.get('lines', {}).keys())
+    pytest_assert(len(configured_lines) > 0, "No console lines configured")
+
+    target_link_id = int(configured_lines[0])
+    logger.info(f"Testing with link {target_link_id}")
+
+    # Find fanout and neighbor for target link
+    fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, duthost, target_link_id)
+    pytest_assert(fanout is not None, f"No fanout found for link {target_link_id}")
+
+    neighbor_name, vm_name, neighbor_device = get_vm_base_neighbor(nbrhosts, tbinfo)
+    pytest_assert(neighbor_name is not None, "No neighbor found in nbrhosts")
+
+    nbr_host = neighbor_device['host']
+    pytest_assert(isinstance(nbr_host, SonicHost), "Neighbor host is not a SonicHost")
+
+    logger.info(f"Found fanout: {fanout.hostname}, port: {fanout_port}")
+    logger.info(f"Found neighbor: {neighbor_name}, VM: {vm_name}")
+
+    # Build console bridge
+    logger.info("Building console bridge...")
+
+    bridge = bridge_manager.build_console_bridge(
+        duthost=duthost,
+        fanout=fanout,
+        fanout_port=fanout_port,
+        vmhost=vmhost,
+        vm_name=vm_name,
+        neighbor_name=neighbor_name,
+        link_id=target_link_id
+    )
+    pytest_assert(bridge is not None, "Failed to build console bridge")
+
+    # Step 1: Disable DTE heartbeat to allow raw data pass-through
+    logger.info("Step 1: Disabling DTE heartbeat...")
+    nbr_host.disable_console_heartbeat()
+
+    # Wait for filter timeout to expire (heartbeat timeout + buffer)
+    logger.info(f"Waiting {HEARTBEAT_TIMEOUT_SEC}s for filter timeout to expire...")
+    time.sleep(HEARTBEAT_TIMEOUT_SEC)
+
+    # Step 2: Send short string from DTE side (neighbor VM's serial console)
+    test_string = "FILTER_TIMEOUT_TEST_STRING_12345"
+    logger.info(f"Step 2: Sending test string from DTE side: {test_string}")
+
+    # Send the test string via neighbor's serial console
+    nbr_host.shell(f"echo '{test_string}' > /dev/ttyS0", module_ignore_errors=True)
+
+    # Step 3 & 4: Connect to DCE side and verify data received
+    logger.info("Step 3 & 4: Connecting to DCE side and verifying data...")
+
+    dutip = duthost.host.options['inventory_manager'].get_host(duthost.hostname).vars['ansible_host']
+    dutuser, dutpass = creds['sonicadmin_user'], creds['sonicadmin_password']
+
+    try:
+        client = pexpect.spawn(
+            f"ssh {dutuser}@{dutip} -q -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+            f"'sudo connect line {target_link_id}'"
+        )
+        client.expect('[Pp]assword:', timeout=10)
+        client.sendline(dutpass)
+
+        i = client.expect([f'Successful connection to line {target_link_id}', 'Cannot connect'], timeout=10)
+        pytest_assert(i == 0, f"Failed to connect line {target_link_id}")
+
+        # Send another test string and try to read it back (echo test)
+        # Since we're connected, send a newline to trigger any buffered output
+        client.sendline('')
+
+        # Send test string from DTE side again while DCE is connected
+        nbr_host.shell(f"echo '{test_string}' > /dev/ttyS0", module_ignore_errors=True)
+
+        # Wait for the string to appear on DCE side
+        i = client.expect([test_string, pexpect.TIMEOUT], timeout=5)
+        pytest_assert(i == 0, f"Failed to receive test string '{test_string}' on DCE side")
+
+        logger.info(f"Successfully received test string on DCE side: {test_string}")
+
+    except pexpect.exceptions.EOF:
+        pytest.fail("EOF reached while connecting to console line")
+    except pexpect.exceptions.TIMEOUT:
+        pytest.fail("Timeout reached while waiting for test string")
+    except Exception as e:
+        pytest.fail(f"Cannot connect to DUT host via SSH: {e}")
+    finally:
+        # Clear the console line after test
+        duthost.shell(f"sudo consutil clear {target_link_id}", module_ignore_errors=True)
+
+    logger.info("Test passed: Data pass-through after filter timeout working correctly")
