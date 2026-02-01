@@ -25,18 +25,20 @@ echo "Current branch: $(git branch --show-current)"
 # Sync files from source using git checkout
 echo "Syncing files from $SOURCE_DIR..."
 git checkout cliffchen/working/main -- tests/console/
+git checkout cliffchen/working/main -- tests/common/device/sonic.py
+git checkout cliffchen/working/main -- tests/common/device/fanout.py
 
 # Show what changed
 echo "Changed files:"
 git diff --stat HEAD
 
-# Amend the commit
-echo "Amending commit..."
-git add tests/console/
-git commit --amend --no-edit
+# # Amend the commit
+# echo "Amending commit..."
+# git add tests/console/
+# git commit --amend --no-edit
 
-# Force push
-echo "Force pushing..."
-git push -f
+# # Force push
+# echo "Force pushing..."
+# git push -f
 
-echo "=== Done ==="
+# echo "=== Done ==="
