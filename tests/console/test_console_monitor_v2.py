@@ -13,7 +13,7 @@ import logging
 import pexpect
 import re
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional
 from dataclasses import dataclass
 
 import pytest
@@ -420,11 +420,10 @@ def test_dut_connected_to_fanout(duthost, fanouthosts, console_facts):
 
     target_link_id = int(configured_lines[0])
     logger.info(f"Testing with link {target_link_id}")
-    
+
     fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, duthost, target_link_id)
     pytest_assert(fanout is not None, f"No fanout found for link {target_link_id}")
     return
-
 
 
 def test_oper_state_transition(
@@ -530,8 +529,6 @@ def test_oper_state_transition(
 
     dutip = duthost.host.options['inventory_manager'].get_host(duthost.hostname).vars['ansible_host']
     dutuser, dutpass = creds['sonicadmin_user'], creds['sonicadmin_password']
-
-    import pdb; pdb.set_trace()
 
     try:
         client = pexpect.spawn(
