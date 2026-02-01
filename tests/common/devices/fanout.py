@@ -19,12 +19,6 @@ class SerialPortMapping():
     baud_rate: int
     flow_control: bool
 
-    def __post_init__(self):
-        self.dut_name = str(self.dut_name)
-        self.dut_port = int(self.dut_port)
-        self.baud_rate = int(self.baud_rate)
-        self.flow_control = bool(self.flow_control)
-
 
 class FanoutHost(object):
     """
