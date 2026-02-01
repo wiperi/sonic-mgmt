@@ -25,8 +25,8 @@ echo "Current branch: $(git branch --show-current)"
 # Sync files from source using git checkout
 echo "Syncing files from $SOURCE_DIR..."
 git checkout cliffchen/working/main -- tests/console/
-git checkout cliffchen/working/main -- tests/common/device/sonic.py
-git checkout cliffchen/working/main -- tests/common/device/fanout.py
+git checkout cliffchen/working/main -- tests/common/devices/sonic.py
+git checkout cliffchen/working/main -- tests/common/devices/fanout.py
 
 # Show what changed
 echo "Changed files:"
