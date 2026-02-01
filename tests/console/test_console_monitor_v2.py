@@ -139,7 +139,7 @@ def get_serial_fanout_for_line(fanouthosts, duthosts, link_id: int):
 
     for fanout in fanouthosts.values():
         for fanout_port, mapping in fanout.serial_port_map.items():
-            if mapping is not None and str(mapping.dut_name) == dut_hostname and mapping.dut_port == link_id:
+            if mapping is not None and str(mapping.dut_name) == dut_hostname and int(mapping.dut_port) == link_id:
                 logger.info(f"Found fanout {fanout.hostname} port {fanout_port} for link {link_id}")
                 return fanout, fanout_port
 
