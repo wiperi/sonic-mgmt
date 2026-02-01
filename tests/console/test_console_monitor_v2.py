@@ -362,7 +362,6 @@ class BridgeManager:
             time.sleep(SOCAT_STARTUP_DELAY)
         except Exception as e:
             logger.error(f"Failed to start bridge_remote on fanout: {e}")
-            # Cleanup VM host socat
             self._cleanup_vmhost_socat(vmhost, bridge_port)
             return None
 
