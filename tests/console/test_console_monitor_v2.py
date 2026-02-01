@@ -155,7 +155,7 @@ def wait_for_line_status(duthost, line_id: int, expected_status: str, timeout: i
         logger.debug(f"Line {line_id} status: {status}")
         return status == expected_status
 
-    return wait_until(timeout, 1, 0, check_status)
+    return wait_until(timeout, 3, 0, check_status)
 
 
 def get_vm_serial_port(vmhost, vm_name: str) -> Optional[int]:
@@ -226,7 +226,7 @@ def get_serial_fanout_for_line(fanouthosts, duthosts, link_id: int):
 
     for fanout in fanouthosts.values():
         for fanout_port, mapping in fanout.serial_port_map.items():
-            if mapping is not None and mapping.dut_name == dut_hostname and mapping.dut_port == link_id:
+            if mapping is not None and str(mapping.dut_name) == dut_hostname and mapping.dut_port == link_id:
                 logger.info(f"Found fanout {fanout.hostname} port {fanout_port} for link {link_id}")
                 return fanout, fanout_port
 
@@ -234,16 +234,13 @@ def get_serial_fanout_for_line(fanouthosts, duthosts, link_id: int):
     return None, None
 
 
-def get_neighbor_for_line(nbrhosts, tbinfo, link_id: int):
+def get_vm_base_neighbor(nbrhosts, tbinfo):
     """
-    Get the neighbor device and VM name for a given link_id.
-
-    Assumes link_id maps to neighbor based on vm_offset in topology.
+    Get the vm_base neighbor device from nbrhosts.
 
     Args:
         nbrhosts: Dict of neighbor hosts
         tbinfo: Testbed info
-        link_id: Console line ID
 
     Returns:
         Tuple[str, str, NeighborDevice]: (neighbor_name, vm_name, neighbor_device) or (None, None, None)
@@ -251,29 +248,20 @@ def get_neighbor_for_line(nbrhosts, tbinfo, link_id: int):
     if not nbrhosts:
         return None, None, None
 
-    vms = tbinfo['topo']['properties']['topology'].get('VMs', {})
     vm_base = tbinfo.get('vm_base', '')
-
     if not vm_base:
         logger.warning("No vm_base in tbinfo")
         return None, None, None
 
-    # Calculate VM name format
-    vm_base_num = int(vm_base[2:])
-    vm_name_fmt = 'VM%0{}d'.format(len(vm_base) - 2)
+    # Find neighbor that matches vm_base
+    for neighbor_name, neighbor_device in nbrhosts.items():
+        # Check if neighbor's vm_name matches vm_base
+        vm_name = neighbor_device['host'].hostname
+        if vm_name and vm_name.upper() == vm_base.upper():
+            logger.info(f"Found neighbor {neighbor_name} matching vm_base {vm_base}")
+            return neighbor_name, vm_base, neighbor_device
 
-    # Find neighbor with matching vm_offset (link_id - 1 typically)
-    for neighbor_name, neighbor_info in vms.items():
-        vm_offset = neighbor_info.get('vm_offset', 0)
-        # Assuming link_id corresponds to vm_offset + 1
-        if vm_offset + 1 == link_id:
-            vm_name = vm_name_fmt % (vm_base_num + vm_offset)
-            neighbor_device = nbrhosts.get(neighbor_name)
-            if neighbor_device:
-                logger.info(f"Found neighbor {neighbor_name} (VM: {vm_name}) for link {link_id}")
-                return neighbor_name, vm_name, neighbor_device
-
-    logger.warning(f"No neighbor found for link {link_id}")
+    logger.warning(f"No neighbor found matching vm_base {vm_base}")
     return None, None, None
 
 
@@ -361,7 +349,7 @@ class BridgeManager:
         logger.info(f"Starting socat on VM host: {vmhost_socat_cmd}")
 
         try:
-            vmhost.shell(vmhost_socat_cmd, module_ignore_errors=True)
+            vmhost.shell(vmhost_socat_cmd)
             time.sleep(SOCAT_STARTUP_DELAY)
         except Exception as e:
             logger.error(f"Failed to start socat on VM host: {e}")
@@ -376,7 +364,7 @@ class BridgeManager:
         logger.info(f"Starting socat on fanout: {fanout_socat_cmd}")
 
         try:
-            fanout.host.shell(fanout_socat_cmd, module_ignore_errors=True)
+            fanout.host.shell(fanout_socat_cmd)
             time.sleep(SOCAT_STARTUP_DELAY)
         except Exception as e:
             logger.error(f"Failed to start socat on fanout: {e}")
@@ -527,6 +515,22 @@ def cleanup_console_sessions(duthosts):
 
 # ==================== Test Cases ====================
 
+def test_dut_connected_to_fanout(duthost, fanouthosts):
+
+    # Get the first configured console line for testing
+    console_facts = duthost.console_facts()['ansible_facts']['console_facts']
+    configured_lines = list(console_facts.get('lines', {}).keys())
+    pytest_assert(len(configured_lines) > 0, "No console lines configured")
+
+    target_link_id = int(configured_lines[0])
+    logger.info(f"Testing with link {target_link_id}")
+    
+    fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, [duthost], target_link_id)
+    pytest_assert(fanout is not None, f"No fanout found for link {target_link_id}")
+    return
+
+
+
 def test_oper_state_transition(
     duthosts,
     fanouthosts,
@@ -535,7 +539,7 @@ def test_oper_state_transition(
     vmhost,
     serial_fanouts,
     ensure_dce_service_running,
-    bridge_manager,
+    bridge_manager: BridgeManager,
     cleanup_console_sessions
 ):
     """
@@ -549,6 +553,8 @@ def test_oper_state_transition(
     5. Stop DTE heartbeat on neighbor VM
     6. Wait for heartbeat timeout, verify status returns to 'Unknown'
     """
+
+    import pdb; pdb.set_trace()
     duthost = duthosts[0]
 
     # Get the first configured console line for testing
@@ -578,8 +584,8 @@ def test_oper_state_transition(
     fanout, fanout_port = get_serial_fanout_for_line(fanouthosts, duthosts, target_link_id)
     pytest_assert(fanout is not None, f"No fanout found for link {target_link_id}")
 
-    neighbor_name, vm_name, neighbor_device = get_neighbor_for_line(nbrhosts, tbinfo, target_link_id)
-    pytest_assert(neighbor_name is not None, f"No neighbor found for link {target_link_id}")
+    neighbor_name, vm_name, neighbor_device = get_vm_base_neighbor(nbrhosts, tbinfo)
+    pytest_assert(neighbor_name is not None, "No neighbor found in nbrhosts")
 
     logger.info(f"Found fanout: {fanout.hostname}, port: {fanout_port}")
     logger.info(f"Found neighbor: {neighbor_name}, VM: {vm_name}")
@@ -598,36 +604,24 @@ def test_oper_state_transition(
     )
     pytest_assert(bridge is not None, "Failed to build console bridge")
 
-    # Step 4: Start DTE heartbeat on neighbor VM
-    logger.info("Step 4: Starting DTE heartbeat on neighbor VM...")
-
-    # The neighbor VM should have consoled-dte service or we can start it manually
-    # For now, assume the neighbor is configured to send heartbeat when serial is connected
-    # If the neighbor is an EOS/SONiC VM, we need to enable heartbeat there
+    # Step 4: Ensure console-monitor-dte service is running and enable heartbeat on neighbor VM
+    logger.info("Step 4: Ensuring console-monitor-dte service running and enabling heartbeat on neighbor VM...")
 
     if neighbor_device:
         nbr_host = neighbor_device['host']
-        # Try to start consoled-dte on the neighbor if it's a SONiC host
         if isinstance(nbr_host, SonicHost):
-            try:
-                nbr_host.shell("sudo systemctl start consoled-dte", module_ignore_errors=True)
-                logger.info("Started consoled-dte on neighbor")
-            except Exception as e:
-                logger.warning(f"Could not start consoled-dte on neighbor: {e}")
+            # Ensure console-monitor-dte service is running
+            nbr_host.shell("sudo systemctl start console-monitor-dte")
+            # Enable heartbeat sending
+            nbr_host.shell("sudo config console heartbeat enable")
+            logger.info("console-monitor-dte service running and heartbeat enabled on neighbor")
 
     # Step 5: Verify line status changes to 'Up'
     logger.info(f"Step 5: Waiting for line {target_link_id} to become 'Up'...")
 
-    result = wait_for_line_status(duthost, target_link_id, 'Up', timeout=HEARTBEAT_DETECT_SEC + 10)
-    if not result:
-        current_status = get_line_status(duthost, target_link_id)
-        logger.warning(f"Line {target_link_id} status is: {current_status}")
-        # Don't fail immediately - the heartbeat might need more setup
-        pytest.skip(f"Line did not become 'Up' - heartbeat may need additional configuration")
+    time.sleep(HEARTBEAT_DETECT_SEC)
 
-    logger.info(f"Line {target_link_id} is now 'Up'")
-
-    # Verify other lines remain 'Unknown'
+    # Verify target line is 'Up' and other lines remain 'Unknown'
     all_statuses = get_console_line_statuses(duthost)
     for line_id, line_info in all_statuses.items():
         if int(line_id) == target_link_id:
@@ -647,11 +641,8 @@ def test_oper_state_transition(
     if neighbor_device:
         nbr_host = neighbor_device['host']
         if isinstance(nbr_host, SonicHost):
-            try:
-                nbr_host.shell("sudo systemctl stop consoled-dte", module_ignore_errors=True)
-                logger.info("Stopped consoled-dte on neighbor")
-            except Exception as e:
-                logger.warning(f"Could not stop consoled-dte on neighbor: {e}")
+            nbr_host.shell("sudo config console heartbeat disable")
+            logger.info("Stopped console-monitor-dte on neighbor")
 
     # Cleanup the bridge to stop all socat processes
     bridge_manager.cleanup_all_bridges()

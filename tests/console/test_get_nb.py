@@ -12,8 +12,6 @@ pytestmark = [pytest.mark.topology("any")]
 
 def test_get_neighbors_via_nbrhosts(nbrhosts, tbinfo, ansible_adhoc):
 
-    breakpoint()
-
     """
     方式一：使用 nbrhosts fixture（推荐）
 
@@ -65,8 +63,6 @@ def test_get_neighbors_via_nbrhosts(nbrhosts, tbinfo, ansible_adhoc):
 def test_get_server_info(request, tbinfo, vmhost):
     """获取 testbed 对应的 dev server 信息"""
 
-    breakpoint()
-    
     # 从 tbinfo 获取基本信息
     testbed_name = tbinfo['conf-name']  # 'testbed-bjw3-can-mc0-720dt-9'
     server = tbinfo['server']            # 'server_bjw3_9'
@@ -83,6 +79,26 @@ def test_get_server_info(request, tbinfo, vmhost):
     print(f"Server: {server}")
     print(f"Server IP: {server_ip}")
     print(f"VM Base: {vm_base}")
+
+def test_get_fanout(duthosts, fanouthosts):
+    """获取 DUT 对应的 fanout 设备信息"""
+
+    breakpoint()
+
+    if not fanouthosts:
+        logger.warning("No fanout hosts found in this topology")
+        pytest.skip("No fanout hosts in this topology")
+
+    # 打印所有 fanout 主机名称
+    logger.info(f"All fanout host names: {list(fanouthosts.keys())}")
+
+    # 遍历所有 fanout 主机
+    for fanout_name, fanout_host in fanouthosts.items():
+        logger.info(f"\n--- Fanout Host: {fanout_name} ---")
+
+        # 在 fanout 主机上执行命令示例
+        # result = fanout_host.command("show version")
+        # logger.info(f"Version output: {result['stdout']}")
 
 # class TestGetNeighborDemo:
 #     """Demo class showing two ways to get neighbor devices"""

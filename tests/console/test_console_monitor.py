@@ -267,6 +267,9 @@ def test_oper_state_transition(
     5. Verify line 1 remains 'Up' briefly (grace period)
     6. Wait for heartbeat timeout, verify line 1 returns to 'Unknown'
     """
+
+    breakpoint()
+
     duthost = duthosts[0]
     fanout_host = console_fanout.host
 
