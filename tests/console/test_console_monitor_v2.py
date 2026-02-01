@@ -16,7 +16,6 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 
 import pytest
-from typing_extensions import TypedDict
 
 from tests.common.devices.sonic import SonicHost
 from tests.common.helpers.assertions import pytest_assert
@@ -38,12 +37,6 @@ SOCAT_STARTUP_DELAY = 1     # Delay after starting socat to ensure it's ready
 
 # ==================== Type Definitions ====================
 
-class LineStatus(TypedDict):
-    """Type definition for console line status."""
-    oper_state: str
-    state_duration: str
-
-
 @dataclass
 class ConsoleBridge:
     """Information about an established console bridge."""
@@ -56,86 +49,6 @@ class ConsoleBridge:
 
 
 # ==================== Helper Functions ====================
-
-def parse_show_line_output(output: str) -> Dict[str, LineStatus]:
-    """
-    Parse the output of 'show line -b' command.
-
-    Example output:
-      Line    Baud    Flow Control    PID    Start Time      Device    Oper State    State Duration
-    ------  ------  --------------  -----  ------------  ----------  ------------  ----------------
-         1    9600        Disabled      -             -   Terminal1       Unknown          3h20m26s
-         2    9600        Disabled      -             -   Terminal2       Unknown          3h32m59s
-
-    Returns:
-        Dict[str, LineStatus]: {line_id: {'oper_state': str, 'state_duration': str}} for all lines
-    """
-    result: Dict[str, LineStatus] = {}
-    lines = output.strip().split('\n')
-
-    # Find the header line to determine column positions
-    header_line = None
-    data_start = 0
-    for i, line in enumerate(lines):
-        if 'Line' in line and 'Oper State' in line:
-            header_line = line
-            data_start = i + 2  # Skip header and separator line
-            break
-
-    if header_line is None:
-        return result
-
-    # Parse data lines
-    for line in lines[data_start:]:
-        if not line.strip():
-            continue
-
-        # Split by multiple spaces to handle the tabular format
-        parts = line.split()
-        if len(parts) >= 8:
-            # Line ID is the first column, Oper State is the 7th column (index 6)
-            # State Duration is the 8th column (index 7)
-            # Format: Line, Baud, Flow Control (2 words), PID, Start Time, Device, Oper State, State Duration
-            line_id = parts[0]
-            oper_state = parts[6]
-            state_duration = parts[7]
-            result[line_id] = LineStatus(
-                oper_state=oper_state,
-                state_duration=state_duration
-            )
-
-    return result
-
-
-def get_console_line_statuses(duthost) -> Dict[str, LineStatus]:
-    """
-    Get status of all configured console lines using 'show line -b' command.
-
-    Args:
-        duthost: DUT host object
-
-    Returns:
-        Dict[str, LineStatus]: {line_id: {'oper_state': str, 'state_duration': str}} for all lines
-    """
-    output = duthost.shell("show line -b")['stdout']
-    return parse_show_line_output(output)
-
-
-def get_line_status(duthost, line_id: int) -> Optional[str]:
-    """
-    Get the oper_state of a specific console line.
-
-    Args:
-        duthost: DUT host object
-        line_id: Console line ID (e.g., 1, 2)
-
-    Returns:
-        str: Line status ('Up', 'Unknown', 'Down', etc.) or None if not found
-    """
-    all_statuses = get_console_line_statuses(duthost)
-    line_info = all_statuses.get(str(line_id))
-    return line_info['oper_state'] if line_info else None
-
 
 def wait_for_line_status(duthost, line_id: int, expected_status: str, timeout: int = 20) -> bool:
     """
@@ -151,7 +64,7 @@ def wait_for_line_status(duthost, line_id: int, expected_status: str, timeout: i
         bool: True if status reached, False if timeout
     """
     def check_status():
-        status = get_line_status(duthost, line_id)
+        status = duthost.get_console_line_status(line_id)
         logger.debug(f"Line {line_id} status: {status}")
         return status == expected_status
 
@@ -559,7 +472,7 @@ def test_oper_state_transition(
     logger.info("Step 1: Verifying initial state...")
     time.sleep(HEARTBEAT_TIMEOUT_SEC)  # Wait for any existing heartbeat to timeout
 
-    all_statuses = get_console_line_statuses(duthost)
+    all_statuses = duthost.get_console_line_statuses()
     logger.info(f"Initial line statuses: {all_statuses}")
 
     for line_id, line_info in all_statuses.items():
@@ -612,7 +525,7 @@ def test_oper_state_transition(
     time.sleep(HEARTBEAT_DETECT_SEC)
 
     # Verify target line is 'Up' and other lines remain 'Unknown'
-    all_statuses = get_console_line_statuses(duthost)
+    all_statuses = duthost.get_console_line_statuses()
     for line_id, line_info in all_statuses.items():
         if int(line_id) == target_link_id:
             pytest_assert(
