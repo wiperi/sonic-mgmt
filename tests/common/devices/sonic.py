@@ -1,4 +1,3 @@
-
 import ipaddress
 import json
 import logging
@@ -40,7 +39,6 @@ class ShellResult(TypedDict):
 
 
 logger = logging.getLogger(__name__)
-
 PROCESS_TO_CONTAINER_MAP = {
     "orchagent": "swss",
     "syncd": "syncd"
@@ -115,7 +113,6 @@ class SonicHost(AnsibleHostBase):
         self._sonic_release = self._get_sonic_release()
         self.is_multi_asic = True if self.facts["num_asic"] > 1 else False
         self._kernel_version = self._get_kernel_version()
-        self._slot_number = self._get_slot_number()
 
     def __str__(self):
         return '<SonicHost {}>'.format(self.hostname)
@@ -191,10 +188,6 @@ class SonicHost(AnsibleHostBase):
 
         return self._critical_services
 
-    @property
-    def slot_number(self):
-        return self._slot_number
-
     @critical_services.setter
     def critical_services(self, var):
         """
@@ -251,15 +244,6 @@ class SonicHost(AnsibleHostBase):
 
         logging.debug("Gathered SonicHost facts: %s" % json.dumps(facts))
         return facts
-
-    def _get_slot_number(self):
-        im = self.host.options['inventory_manager']
-        inv_files = im._sources
-        dut_vars = get_host_visible_vars(inv_files, self.hostname)
-        slot_num = dut_vars.get('slot_num')
-        if slot_num:
-            return int(slot_num.partition('slot')[-1])
-        return None
 
     def _get_mgmt_interface(self):
         """
@@ -1542,12 +1526,12 @@ Totals               6450                 6449
         if skip_kernel_linkdown is True:
             output = self.shell("show ip route kernel")["stdout_lines"]
             ipv4_route_kernel_skip_count = 0
-            pattern = re.compile(r'^K\s+.*directly connected.*linkdown')
+            pattern = re.compile(r'^K\s+.*directly connected')
 
             for line in output:
                 if pattern.search(line):
                     ipv4_route_kernel_skip_count += 1
-                    logging.debug("skip IPv4 route kernel for linkdown: {}".format(line))
+                    logging.debug("skip IPv4 route kernel for directly connected but not selected: {}".format(line))
 
             if ipv4_route_kernel_skip_count > 0:
                 ipv4_summary['kernel']['routes'] -= ipv4_route_kernel_skip_count
@@ -1573,12 +1557,12 @@ Totals               6450                 6449
         if skip_kernel_linkdown is True:
             output = self.shell("show ipv6 route kernel")["stdout_lines"]
             ipv6_route_kernel_skip_count = 0
-            pattern = re.compile(r'^K\s+.*directly connected.*linkdown')
+            pattern = re.compile(r'^K\s+.*directly connected')
 
             for line in output:
                 if pattern.search(line):
                     ipv6_route_kernel_skip_count += 1
-                    logging.debug("skip IPv6 route kernel for linkdown: {}".format(line))
+                    logging.debug("skip IPv6 route kernel for directly connected but not selected: {}".format(line))
 
             if ipv6_route_kernel_skip_count > 0:
                 ipv6_summary['kernel']['routes'] -= ipv6_route_kernel_skip_count
@@ -2457,6 +2441,17 @@ Totals               6450                 6449
     def is_backend_port(self, port, mg_facts):
         return True if "Ethernet-BP" in port else False
 
+    def get_backplane_ports(self):
+        # get current interface data from config_db.json
+        config_facts = self.config_facts(host=self.hostname, source='running', verbose=False)['ansible_facts']
+        config_db_ports = config_facts["PORT"]
+        # Build set of Ethernet ports with 18.x.202.0/31 IPs to exclude
+        excluded_ports = set()
+        for port, val in config_db_ports.items():
+            if "role" in val:
+                excluded_ports.add(port)
+        return excluded_ports
+
     def active_ip_interfaces(self, ip_ifs, tbinfo, ns_arg=DEFAULT_NAMESPACE, intf_num="all", ip_type="ipv4"):
         """
         Return a dict of active IP (Ethernet or PortChannel) interfaces, with
@@ -2467,10 +2462,10 @@ Totals               6450                 6449
         """
         active_ip_intf_cnt = 0
         mg_facts = self.get_extended_minigraph_facts(tbinfo, ns_arg)
-        config_facts_ports = self.config_facts(host=self.hostname, source="running")["ansible_facts"].get("PORT", {})
+        excluded_ports = self.get_backplane_ports()
         ip_ifaces = {}
         for k, v in list(ip_ifs.items()):
-            if ((k.startswith("Ethernet") and config_facts_ports.get(k, {}).get("role", "") != "Dpc" and
+            if ((k.startswith("Ethernet") and (k not in excluded_ports) and
                  (not k.startswith("Ethernet-BP")) and not is_inband_port(k)) or
                (k.startswith("PortChannel") and not self.is_backend_portchannel(k, mg_facts))):
                 if ip_type == "ipv4":
@@ -3231,72 +3226,66 @@ print(device_prefix)
         logging.info(f"Successfully unbridged ports {port1} and {port2}")
 
     def bridge_remote(
-        self, port: str, remote_addr: str, baud_rate: str = "9600", flow_control: bool = False
+        self, port: int, remote_host: str, remote_port: int,
+        baud_rate: int = 9600, flow_control: bool = False
     ) -> None:
-        """
-        Bridge a local console port to a remote virtual serial port via TCP socket.
+        """Bridge a local serial port to a remote host's TCP port. Raises RuntimeError on failure."""
+        if not self.is_console_switch():
+            error_msg = "This operation is only supported on console switches"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
 
-        This method bridges a console port on the console switch leaf fanout to a remote
-        virtual serial console port via socket. It allows interactive tests between
-        SONiC console server and a virtual DTE.
-
-        Args:
-            port: Local console port name (e.g., "1", "2")
-            remote_addr: Remote address in "host:port" format (e.g., "192.168.1.100:5000")
-            baud_rate: Baud rate for the local serial port (default: "9600")
-            flow_control: Enable hardware flow control (RTS/CTS) (default: False)
-
-        Raises:
-            RuntimeError: If the bridge operation fails
-        """
         device_path = self._get_serial_device_path(port)
 
-        # Check if device path exists and is not in use (will raise on error)
-        self._check_device_path_exists(device_path)
-        self._check_device_path_not_in_use(device_path)
+        # Check if device path exists and is not in use or raise error
+        if not self.is_file_existed(device_path):
+            error_msg = f"Device path {device_path} does not exist"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
+        if self.is_file_opened(device_path):
+            error_msg = f"Device path {device_path} is already in use"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
 
         # Set hardware flow control option
         crtscts_val = "1" if flow_control else "0"
 
-        # Execute bridge command: local serial port <-> remote TCP socket
+        # Execute bridge command to remote host
         command = (
             f"sudo socat -d -d "
             f"FILE:{device_path},raw,echo=0,nonblock,b{baud_rate},cs8,"
             f"parenb=0,cstopb=0,ixon=0,ixoff=0,crtscts={crtscts_val},icrnl=0,onlcr=0,opost=0,isig=0,icanon=0 "
-            f"TCP:{remote_addr} "
+            f"TCP:{remote_host}:{remote_port} "
             f"& echo $! "
         )
 
         res: ShellResult = self.shell(command, module_ignore_errors=True)
         if res['failed']:
-            error_msg = f"Failed to bridge port {port} to {remote_addr}: {res.get('stderr', '')}"
+            error_msg = f"Failed to bridge port {port} to {remote_host}:{remote_port}: {res.get('stderr', '')}"
             logging.error(error_msg)
             raise RuntimeError(error_msg)
 
-        logging.info(f"Successfully bridged port {port} to remote {remote_addr}")
+        logging.info(f"Successfully bridged port {port} to {remote_host}:{remote_port}")
 
-    def unbridge_remote(self, port: str, remote_addr: str = None) -> None:
-        """
-        Remove bridge between a local console port and a remote host.
+    def unbridge_remote(self, port: int) -> None:
+        """Remove bridge from a local port to any remote host. Raises RuntimeError on failure."""
+        if not self.is_console_switch():
+            error_msg = "This operation is only supported on console switches"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
 
-        Args:
-            port: Local console port name (e.g., "1", "2")
-            remote_addr: Remote address in "host:port" format (optional, for more precise matching)
-
-        Raises:
-            RuntimeError: If the unbridge operation fails
-        """
         device_path = self._get_serial_device_path(port)
 
-        # Build grep pattern
-        pattern = ''
-        if remote_addr:
-            pattern = f"socat.*{device_path}.*TCP:{remote_addr}"
-        else:
-            pattern = f"socat.*{device_path}.*TCP:"
+        if not self.is_file_existed(device_path):
+            error_msg = f"Device path {device_path} does not exist"
+            logging.error(error_msg)
+            raise RuntimeError(error_msg)
 
-        # Find all related socat processes
-        res: ShellResult = self.shell(f"pgrep -f '{pattern}'", module_ignore_errors=True)
+        # Find all related socat processes for the port with TCP connection
+        res: ShellResult = self.shell(
+            f"pgrep -f 'socat .*{device_path}.*TCP:'",
+            module_ignore_errors=True
+        )
         pids = res['stdout'].strip().split('\n') if res['stdout'].strip() else []
 
         if not pids or pids == ['']:
@@ -3306,13 +3295,14 @@ print(device_prefix)
 
         # Kill all related socat processes
         for pid in pids:
-            self.shell(f"sudo kill {pid}", module_ignore_errors=True)
+            if pid:  # Skip empty strings
+                self.shell(f"sudo kill {pid}", module_ignore_errors=True)
 
         time.sleep(0.5)
 
         # Confirm all related processes have stopped
         res: ShellResult = self.shell(
-            f"ps aux | grep -E '{pattern}' | grep -v grep",
+            f"ps aux | grep 'socat .*{device_path}.*TCP:' | grep -v grep",
             module_ignore_errors=True
         )
 
