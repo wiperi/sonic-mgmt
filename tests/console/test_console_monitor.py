@@ -431,7 +431,7 @@ def test_dut_connected_to_fanout(duthost, fanouthosts, configured_lines: list[in
     fanout, _ = get_serial_fanout_for_line(fanouthosts, duthost, target_link_id)
     logger.info(f"Link {target_link_id} connected to fanout {fanout.hostname}")
 
-@pytest.mark.skip()
+
 def test_oper_state_transition(
     duthost: SonicHost,
     tbinfo: dict,
@@ -470,7 +470,7 @@ def test_oper_state_transition(
 
     # Step 2: Build console bridge
     logger.info("Step 2: Building console bridge...")
-    bridge = bridge_manager.build_console_bridge(target_link_id, neighbor_name)
+    _ = bridge_manager.build_console_bridge(target_link_id, neighbor_name)
     nbr_host = bridge_manager.get_neighbor_host(neighbor_name)
 
     # Step 3: Enable heartbeat on neighbor VM
@@ -543,7 +543,6 @@ def test_oper_state_transition(
     logger.info("Test passed: Heartbeat detection and oper state transitions working correctly")
 
 
-@pytest.mark.skip()
 def test_filter_timeout(
     duthost: SonicHost,
     tbinfo: dict,
@@ -570,7 +569,7 @@ def test_filter_timeout(
     logger.info(f"Testing with link {target_link_id}, neighbor {neighbor_name}")
 
     # Build console bridge
-    bridge = bridge_manager.build_console_bridge(target_link_id, neighbor_name)
+    _ = bridge_manager.build_console_bridge(target_link_id, neighbor_name)
     nbr_host = bridge_manager.get_neighbor_host(neighbor_name)
 
     # Step 1: Disable DTE heartbeat to allow raw data pass-through
@@ -641,15 +640,13 @@ def test_filter_correctness(
     import string
     import random
 
-    import pdb; pdb.set_trace()
-
     target_link_id = configured_lines[0]
     neighbor_name = tbinfo.get('vm_base', '')
     pytest_assert(neighbor_name, "No vm_base in tbinfo")
     logger.info(f"Testing filter correctness with link {target_link_id}, neighbor {neighbor_name}")
 
     # Build console bridge
-    bridge = bridge_manager.build_console_bridge(target_link_id, neighbor_name)
+    _ = bridge_manager.build_console_bridge(target_link_id, neighbor_name)
     nbr_host = bridge_manager.get_neighbor_host(neighbor_name)
 
     # Step 1: Enable DTE heartbeat
