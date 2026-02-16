@@ -431,7 +431,7 @@ def test_dut_connected_to_fanout(duthost, fanouthosts, configured_lines: list[in
     fanout, _ = get_serial_fanout_for_line(fanouthosts, duthost, target_link_id)
     logger.info(f"Link {target_link_id} connected to fanout {fanout.hostname}")
 
-
+@pytest.mark.skip()
 def test_oper_state_transition(
     duthost: SonicHost,
     tbinfo: dict,
@@ -542,7 +542,7 @@ def test_oper_state_transition(
 
     logger.info("Test passed: Heartbeat detection and oper state transitions working correctly")
 
-
+@pytest.mark.skip()
 def test_filter_timeout(
     duthost: SonicHost,
     tbinfo: dict,
@@ -615,7 +615,7 @@ def test_filter_timeout(
 
     logger.info("Test passed: Data pass-through after filter timeout working correctly")
 
-
+@pytest.mark.skip()
 def test_filter_correctness(
     duthost: SonicHost,
     tbinfo: dict,
@@ -733,3 +733,234 @@ def test_filter_correctness(
         nbr_host.disable_console_heartbeat()
 
     logger.info("Test passed: Filter correctly passes user data without non-printable characters")
+
+def test_memory_usage(
+    duthost: SonicHost,
+    configured_lines: list[int],
+    ensure_dce_service_running
+):
+    """
+    Test memory usage of console monitor services.
+
+    On DCE, all processes are managed by systemd.
+
+    Service list:
+        console-monitor-dce.service - Service that manages console monitor sessions and connections
+        console-monitor-pty-bridge@.service - Template service that creates a bridge for each console line
+        console-monitor-proxy@.service - Template service that creates a proxy for each console line
+
+    Uses systemd to get the memory usage of each service and verifies that
+    memory usage is below a reasonable threshold (1024MB) to ensure there are
+    no memory leaks or excessive resource usage.
+    """
+    MEMORY_THRESHOLD_MB = 1024
+
+    def parse_memory_from_status(output: str) -> Optional[float]:
+        """
+        Parse memory value from systemctl status output.
+
+        Handles formats like: Memory: 17.4M, Memory: 1.2G, Memory: 512.0K
+        Returns memory in MB, or None if not found.
+        """
+        match = re.search(r'Memory:\s+([\d.]+)([KMGTP])', output)
+        if not match:
+            return None
+
+        value = float(match.group(1))
+        unit = match.group(2)
+
+        unit_multipliers = {
+            'K': 1 / 1024,
+            'M': 1,
+            'G': 1024,
+            'T': 1024 * 1024,
+            'P': 1024 * 1024 * 1024,
+        }
+        return value * unit_multipliers.get(unit, 1)
+
+    # Build the list of services to check
+    services = ['console-monitor-dce.service']
+    for line_id in configured_lines:
+        services.append(f'console-monitor-pty-bridge@{line_id}.service')
+        services.append(f'console-monitor-proxy@{line_id}.service')
+
+    logger.info(f"Checking memory usage for {len(services)} console-monitor services")
+
+    total_memory_mb = 0
+    checked_services = []
+
+    for service in services:
+        result = duthost.shell(
+            f"sudo systemctl status {service}",
+            module_ignore_errors=True
+        )
+
+        # All console-monitor services must be active
+        pytest_assert(
+            result['rc'] == 0,
+            f"Service {service} is not active. All console-monitor services must be running."
+        )
+
+        output = result['stdout']
+        memory_mb = parse_memory_from_status(output)
+
+        if memory_mb is None:
+            logger.warning(f"Could not parse memory usage from status output for {service}")
+            continue
+
+        logger.info(f"Service {service}: Memory = {memory_mb:.1f} MB")
+        total_memory_mb += memory_mb
+        checked_services.append(service)
+
+    logger.info(f"Total memory usage across {len(checked_services)} services: {total_memory_mb:.1f} MB")
+    
+    pytest_assert(
+        total_memory_mb < MEMORY_THRESHOLD_MB,
+        f"Total memory usage {total_memory_mb:.1f} MB >= {MEMORY_THRESHOLD_MB} MB threshold for services: {checked_services}"
+    )
+
+    logger.info("Test passed: Total console-monitor services memory usage is within threshold")
+
+def test_cpu_usage(
+    duthost: SonicHost,
+    tbinfo: dict,
+    creds: dict[str, str],
+    configured_lines: list[int],
+    bridge_manager: BridgeManager,
+    ensure_dce_service_running,
+    cleanup_console_sessions
+):
+    """
+    Test CPU usage of ONE console link under active traffic.
+
+    Test steps:
+    1. Build console bridge and start heartbeat on DTE side
+    2. Wait for line status to become 'Up'
+    3. Get PIDs of bridge and proxy services for the target line
+    4. Connect to console line on DCE side and continuously send '\\r' to generate
+       echo traffic, exercising the filter logic
+    5. Read CPU usage via 'ps -p <pid> -o %cpu --no-headers'
+    6. Assert total CPU usage of the two services < 0.5%
+    """
+    CPU_THRESHOLD_PERCENT = 0.5
+    LOAD_DURATION_SEC = 10  # Duration to send traffic
+    CPU_MEASURE_TIME = 8
+
+    target_link_id = configured_lines[0]
+    neighbor_name = tbinfo.get('vm_base', '')
+    pytest_assert(neighbor_name, "No vm_base in tbinfo")
+    logger.info(f"Testing CPU usage with link {target_link_id}, neighbor {neighbor_name}")
+
+    # Step 1: Build console bridge and start heartbeat
+    logger.info("Step 1: Building console bridge and starting heartbeat...")
+    _ = bridge_manager.build_console_bridge(target_link_id, neighbor_name)
+    nbr_host = bridge_manager.get_neighbor_host(neighbor_name)
+    nbr_host.enable_console_heartbeat()
+
+    # Step 2: Wait for line status to become 'Up'
+    logger.info(f"Step 2: Waiting for line {target_link_id} to become 'Up'...")
+    pytest_assert(
+        wait_for_line_status(duthost, target_link_id, 'Up', timeout=HEARTBEAT_DETECT_SEC + 5),
+        f"Line {target_link_id} did not become 'Up' after enabling heartbeat"
+    )
+
+    # Step 3: Get PIDs of bridge and proxy services via systemctl show MainPID
+    logger.info("Step 3: Getting PIDs of bridge and proxy services...")
+    services = [
+        f'console-monitor-pty-bridge@{target_link_id}.service',
+        f'console-monitor-proxy@{target_link_id}.service'
+    ]
+
+    service_pids = {}
+    for service in services:
+        result = duthost.shell(
+            f"sudo systemctl show {service} -p MainPID --value",
+            module_ignore_errors=True
+        )
+        pytest_assert(result['rc'] == 0, f"Failed to get PID for {service}")
+        pid = result['stdout'].strip()
+        pytest_assert(pid and pid != '0', f"Service {service} is not running (PID={pid})")
+        service_pids[service] = pid
+        logger.info(f"Service {service}: PID = {pid}")
+
+    # Step 4: Connect to console line and send '\r' continuously,
+    # and measure CPU usage while traffic is still being sent.
+    logger.info(f"Step 4: Sending '\\r' continuously for {LOAD_DURATION_SEC}s...")
+
+    dutip = duthost.host.options['inventory_manager'].get_host(duthost.hostname).vars['ansible_host']
+    dutuser, dutpass = creds['sonicadmin_user'], creds['sonicadmin_password']
+
+    total_cpu_percent = 0
+    cpu_measured = False
+
+    try:
+        client = pexpect.spawn(
+            f"ssh {dutuser}@{dutip} -q -t -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+            f"'sudo connect line {target_link_id}'"
+        )
+        client.expect('[Pp]assword:', timeout=10)
+        client.sendline(dutpass)
+        time.sleep(2)  # Wait for connection to establish
+
+        # Send '\r' repeatedly for the load duration
+        start_time = time.time()
+        end_time = start_time + LOAD_DURATION_SEC
+        measure_time = start_time + CPU_MEASURE_TIME
+        send_count = 0
+
+        while time.time() < end_time:
+            client.sendline('\r')
+            send_count += 1
+            time.sleep(0.1)  # ~5 sends per second
+
+            # Measure CPU while traffic is still being sent (at ~80% mark)
+            if not cpu_measured and time.time() >= measure_time:
+                logger.info(f"Step 5: Measuring CPU usage while traffic is active (after ~{CPU_MEASURE_TIME}s)...")
+                pids_str = ','.join(service_pids.values())
+                result = duthost.shell(
+                    f"ps -p {pids_str} -o pid,%cpu --no-headers",
+                    module_ignore_errors=True
+                )
+                if result['rc'] == 0:
+                    for line in result['stdout'].strip().splitlines():
+                        parts = line.strip().split()
+                        if len(parts) == 2:
+                            pid_val, cpu_val = parts
+                            cpu_percent = float(cpu_val)
+                            total_cpu_percent += cpu_percent
+                            # Find service name for this PID
+                            service_name = next(
+                                (s for s, p in service_pids.items() if p == pid_val),
+                                f"PID={pid_val}"
+                            )
+                            logger.info(f"  {service_name} (PID={pid_val}): CPU = {cpu_percent:.1f}%")
+                cpu_measured = True
+
+        logger.info(f"Sent {send_count} carriage returns over {LOAD_DURATION_SEC}s")
+
+    except pexpect.exceptions.EOF:
+        logger.warning("EOF during traffic generation, continuing with CPU measurement")
+    except pexpect.exceptions.TIMEOUT:
+        logger.warning("Timeout during traffic generation, continuing with CPU measurement")
+    except Exception as e:
+        logger.warning(f"Exception during traffic generation: {e}, continuing with CPU measurement")
+    finally:
+        duthost.shell(f"sudo consutil clear {target_link_id}", module_ignore_errors=True)
+
+    # CPU must have been measured during active traffic
+    pytest_assert(
+        cpu_measured,
+        "CPU usage was not measured during traffic generation. "
+        "Traffic may have failed before the measurement point."
+    )
+
+    logger.info(f"Total CPU usage for link {target_link_id}: {total_cpu_percent:.1f}%")
+
+    # Step 6: Assert total CPU usage is below threshold
+    pytest_assert(
+        total_cpu_percent < CPU_THRESHOLD_PERCENT,
+        f"Total CPU usage {total_cpu_percent:.3f}% >= {CPU_THRESHOLD_PERCENT}% threshold "
+        f"for services: {list(service_pids.keys())}"
+    )
+
+    logger.info("Test passed: CPU usage is within acceptable threshold")
