@@ -530,9 +530,8 @@ def test_oper_state_transition(
 
     nbr_host.disable_console_heartbeat()
 
-
     # Wait for heartbeat timeout
-    logger.info(f"Waiting for heartbeat timeout...")
+    logger.info("Waiting for heartbeat timeout...")
     time.sleep(HEARTBEAT_TIMEOUT_SEC * 2)
     oper_state = duthost.get_console_line_status(target_link_id)
     pytest_assert(
@@ -810,7 +809,7 @@ def test_console_feature_toggle(
         result = duthost.shell(serial_test_cmd, module_ignore_errors=True)
         pytest_assert(
             result['rc'] == 0,
-            f"Serial devices should still exist after disable"
+            "Serial devices should still exist after disable"
         )
 
         # PTM and PTS should NOT exist
@@ -818,7 +817,7 @@ def test_console_feature_toggle(
         result = duthost.shell(pty_test_cmd, module_ignore_errors=True)
         pytest_assert(
             result['rc'] != 0,
-            f"PTM/PTS devices should not exist after disable"
+            "PTM/PTS devices should not exist after disable"
         )
         logger.info("  Serial devices exist, PTM/PTS removed")
 
@@ -860,7 +859,7 @@ def test_console_feature_toggle(
         result = duthost.shell(all_devs_test_cmd, module_ignore_errors=True)
         pytest_assert(
             result['rc'] == 0,
-            f"All devices (serial, PTM, PTS) should exist after enable"
+            "All devices (serial, PTM, PTS) should exist after enable"
         )
         logger.info("  All serial, PTM, PTS devices exist")
 
@@ -953,10 +952,11 @@ def test_memory_usage(
         checked_services.append(service)
 
     logger.info(f"Total memory usage across {len(checked_services)} services: {total_memory_mb:.1f} MB")
-    
+
     pytest_assert(
         total_memory_mb < MEMORY_THRESHOLD_MB,
-        f"Total memory usage {total_memory_mb:.1f} MB >= {MEMORY_THRESHOLD_MB} MB threshold for services: {checked_services}"
+        f"Total memory usage {total_memory_mb:.1f} MB >= {MEMORY_THRESHOLD_MB} MB "
+        f"threshold for services: {checked_services}"
     )
 
     logger.info("Test passed: Total console-monitor services memory usage is within threshold")
