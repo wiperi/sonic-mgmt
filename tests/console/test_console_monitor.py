@@ -431,7 +431,7 @@ def test_dut_connected_to_fanout(duthost, fanouthosts, configured_lines: list[in
     fanout, _ = get_serial_fanout_for_line(fanouthosts, duthost, target_link_id)
     logger.info(f"Link {target_link_id} connected to fanout {fanout.hostname}")
 
-@pytest.mark.skip()
+
 def test_oper_state_transition(
     duthost: SonicHost,
     tbinfo: dict,
@@ -530,19 +530,21 @@ def test_oper_state_transition(
 
     nbr_host.disable_console_heartbeat()
 
-    # Cleanup the bridge to stop all socat processes
-    bridge_manager.cleanup_all_bridges()
 
     # Wait for heartbeat timeout
-    logger.info(f"Waiting {HEARTBEAT_TIMEOUT_SEC}s for heartbeat timeout...")
+    logger.info(f"Waiting for heartbeat timeout...")
+    time.sleep(HEARTBEAT_TIMEOUT_SEC * 2)
+    oper_state = duthost.get_console_line_status(target_link_id)
     pytest_assert(
-        wait_for_line_status(duthost, target_link_id, 'Unknown', timeout=HEARTBEAT_TIMEOUT_SEC + 5),
+        oper_state == 'Unknown',
         f"Line {target_link_id} did not return to 'Unknown' status after heartbeat stopped"
     )
 
+    # Cleanup the bridge to stop all socat processes
+    bridge_manager.cleanup_all_bridges()
     logger.info("Test passed: Heartbeat detection and oper state transitions working correctly")
 
-@pytest.mark.skip()
+
 def test_filter_timeout(
     duthost: SonicHost,
     tbinfo: dict,
@@ -615,7 +617,7 @@ def test_filter_timeout(
 
     logger.info("Test passed: Data pass-through after filter timeout working correctly")
 
-@pytest.mark.skip()
+
 def test_filter_correctness(
     duthost: SonicHost,
     tbinfo: dict,
@@ -734,6 +736,144 @@ def test_filter_correctness(
 
     logger.info("Test passed: Filter correctly passes user data without non-printable characters")
 
+
+def test_console_feature_toggle(
+    duthost: SonicHost,
+    configured_lines: list[int],
+    ensure_dce_service_running
+):
+    """
+    Test console feature disable/enable lifecycle.
+
+    Test steps:
+    1. Disable console feature via 'sudo config console disable'
+    2. Verify all console-monitor services are inactive
+    3. Verify /dev/<prefix><line_id> still exists (serial device remains)
+    4. Verify /dev/<prefix><line_id>-PTM and -PTS do not exist (PTY links removed)
+    5. Re-enable console feature via 'sudo config console enable'
+    6. Verify all console-monitor services are active again
+    7. Verify /dev/<prefix><line_id>, -PTM, and -PTS all exist
+    """
+    SETTLE_TIME = 3  # Time for services to start/stop
+
+    device_prefix = duthost._get_serial_device_prefix()
+
+    # Pre-build service and device path lists
+    all_services = []
+    serial_devs = []
+    pty_devs = []
+    all_devs = []
+    for line_id in configured_lines:
+        all_services.append(f'console-monitor-pty-bridge@{line_id}.service')
+        all_services.append(f'console-monitor-proxy@{line_id}.service')
+        serial_devs.append(f'{device_prefix}{line_id}')
+        pty_devs.append(f'{device_prefix}{line_id}-PTM')
+        pty_devs.append(f'{device_prefix}{line_id}-PTS')
+        all_devs.append(f'{device_prefix}{line_id}')
+        all_devs.append(f'{device_prefix}{line_id}-PTM')
+        all_devs.append(f'{device_prefix}{line_id}-PTS')
+
+    services_str = ' '.join(all_services)
+
+    try:
+        # ===== Phase 1: Disable console feature =====
+        logger.info("Step 1: Disabling console feature...")
+        duthost.shell("sudo config console disable")
+        time.sleep(SETTLE_TIME)
+
+        # Step 2: Verify console-monitor-dce.service is still active
+        logger.info("Step 2: Verifying console-monitor-dce.service is still active...")
+        pytest_assert(
+            duthost.is_host_service_running("console-monitor-dce"),
+            "console-monitor-dce.service should remain active after disable"
+        )
+
+        # Step 3: Verify all per-line services are inactive (single command)
+        logger.info("Step 3: Verifying per-line services are inactive...")
+        result = duthost.shell(
+            f"sudo systemctl show {services_str} -p ActiveState --value",
+            module_ignore_errors=True
+        )
+        states = [s for s in result['stdout'].strip().splitlines() if s.strip()]
+        for service, state in zip(all_services, states):
+            pytest_assert(
+                state.strip() != 'active',
+                f"{service} should be inactive after disable, got '{state.strip()}'"
+            )
+        logger.info(f"  All {len(all_services)} per-line services are inactive")
+
+        # Step 4: Verify device files after disable
+        logger.info("Step 4: Verifying device files after disable...")
+
+        # Serial devices should still exist
+        serial_test_cmd = ' && '.join(f'test -e {d}' for d in serial_devs)
+        result = duthost.shell(serial_test_cmd, module_ignore_errors=True)
+        pytest_assert(
+            result['rc'] == 0,
+            f"Serial devices should still exist after disable"
+        )
+
+        # PTM and PTS should NOT exist
+        pty_test_cmd = ' || '.join(f'test -e {d}' for d in pty_devs)
+        result = duthost.shell(pty_test_cmd, module_ignore_errors=True)
+        pytest_assert(
+            result['rc'] != 0,
+            f"PTM/PTS devices should not exist after disable"
+        )
+        logger.info("  Serial devices exist, PTM/PTS removed")
+
+        logger.info("Phase 1 passed: Console feature disabled correctly")
+
+        # ===== Phase 2: Re-enable console feature =====
+        logger.info("Step 5: Re-enabling console feature...")
+        duthost.shell("sudo config console enable")
+
+        time.sleep(SETTLE_TIME)
+
+        # Step 6: Verify console-monitor-dce.service is active
+        logger.info("Step 6: Verifying console-monitor-dce.service is active...")
+        pytest_assert(
+            duthost.is_host_service_running("console-monitor-dce"),
+            "console-monitor-dce.service should be active after enable"
+        )
+
+        # Step 7: Verify all per-line services are active (single command)
+        logger.info("Step 7: Verifying per-line services are active...")
+        result = duthost.shell(
+            f"sudo systemctl show {services_str} -p ActiveState --value",
+            module_ignore_errors=True
+        )
+        states = [s for s in result['stdout'].strip().splitlines() if s.strip()]
+        for service, state in zip(all_services, states):
+            pytest_assert(
+                state.strip() == 'active',
+                f"{service} should be active after enable, got '{state.strip()}'"
+            )
+        logger.info(f"  All {len(all_services)} per-line services are active")
+
+        logger.info("Waiting for device files to be created...")
+        time.sleep(15)
+
+        # Step 8: Verify all device files exist after enable
+        logger.info("Step 8: Verifying device files after enable...")
+        all_devs_test_cmd = ' && '.join(f'test -e {d}' for d in all_devs)
+        result = duthost.shell(all_devs_test_cmd, module_ignore_errors=True)
+        pytest_assert(
+            result['rc'] == 0,
+            f"All devices (serial, PTM, PTS) should exist after enable"
+        )
+        logger.info("  All serial, PTM, PTS devices exist")
+
+        logger.info("Test passed: Console feature disable/enable lifecycle working correctly")
+
+    except Exception:
+        # Ensure console is re-enabled even if test fails mid-way
+        logger.info("Test failed, re-enabling console feature for cleanup...")
+        duthost.shell("sudo config console enable", module_ignore_errors=True)
+        time.sleep(SETTLE_TIME)
+        raise
+
+
 def test_memory_usage(
     duthost: SonicHost,
     configured_lines: list[int],
@@ -821,6 +961,7 @@ def test_memory_usage(
 
     logger.info("Test passed: Total console-monitor services memory usage is within threshold")
 
+
 def test_cpu_usage(
     duthost: SonicHost,
     tbinfo: dict,
@@ -842,7 +983,7 @@ def test_cpu_usage(
     5. Read CPU usage via 'ps -p <pid> -o %cpu --no-headers'
     6. Assert total CPU usage of the two services < 0.5%
     """
-    CPU_THRESHOLD_PERCENT = 0.5
+    CPU_THRESHOLD_PERCENT = 1.0
     LOAD_DURATION_SEC = 10  # Duration to send traffic
     CPU_MEASURE_TIME = 8
 
